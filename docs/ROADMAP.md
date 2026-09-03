@@ -1,0 +1,27 @@
+# Implementation roadmap
+
+Status values: `complete`, `next`, `planned`, `optional`.
+
+| Phase | Status | Deliverable |
+| --- | --- | --- |
+| 01 | complete | Repository, FastAPI health API, schemas, Next.js shell, tests |
+| 02 | next | SQLite persistence, repositories, mission/event APIs |
+| 03 | planned | arXiv and GitHub tools, normalization, deduplication, mock sources |
+| 04 | planned | Provider-independent LLM client and deterministic mock LLM |
+| 05 | planned | Search Agent |
+| 06 | planned | Evidence Agent with strict provenance |
+| 07 | planned | Analyst Agent and deterministic opportunity scoring |
+| 08 | planned | Critic Agent, coverage scoring, targeted query output |
+| 09 | planned | LangGraph orchestrator and bounded re-search routing |
+| 10 | planned | Decision Engine |
+| 11 | planned | Action Agent and PoC task plan |
+| 12 | optional | User-approved calendar proposal/execution integration |
+| 13 | planned | Mission, evidence, decision, and action frontend views |
+| 14 | planned | Deterministic offline Demo Mode |
+| 15 | planned | Comprehensive unit, agent, API, and workflow tests |
+| 16 | planned | Engineering audit and focused refactor |
+| 17 | planned | Hackathon submission README and demo links |
+| 18 | planned | Reviewer audit, live-demo hardening, final checklist |
+
+Each phase should land as a scoped issue/PR and leave the repository passing
+backend tests plus frontend lint/build.

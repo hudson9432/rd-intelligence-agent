@@ -1,0 +1,81 @@
+import { EmptyMissions } from "@/components/EmptyMissions";
+import styles from "./page.module.css";
+
+const workflow = ["Research", "Evidence", "Evaluate", "Decide", "Act"];
+
+export default function Home() {
+  return (
+    <main className={styles.page}>
+      <header className={styles.header}>
+        <a
+          className={styles.brand}
+          href="#top"
+          aria-label="R&D Intelligence Agent home"
+        >
+          <span className={styles.brandMark} aria-hidden="true">
+            RI
+          </span>
+          <span>R&D Intelligence Agent</span>
+        </a>
+        <span className={styles.phaseBadge}>Foundation · Phase 1</span>
+      </header>
+
+      <section className={styles.hero} id="top">
+        <div className={styles.heroCopy}>
+          <p className={styles.eyebrow}>Evidence-backed technology strategy</p>
+          <h1>Turn research goals into decisions your team can act on.</h1>
+          <p className={styles.summary}>
+            Coordinate specialized agents to discover evidence, challenge
+            assumptions, rank R&D opportunities, and prepare a focused PoC plan.
+          </p>
+          <button
+            className={styles.primaryButton}
+            type="button"
+            disabled
+            title="Mission creation will be enabled when the mission API is available."
+          >
+            <span aria-hidden="true">＋</span>
+            New Research Mission
+          </button>
+          <p className={styles.buttonNote}>Mission creation is coming in phase 2.</p>
+        </div>
+
+        <aside className={styles.workflowCard} aria-label="Product workflow">
+          <div className={styles.cardHeader}>
+            <span>Intelligence workflow</span>
+            <span className={styles.liveDot}>Ready</span>
+          </div>
+          <ol className={styles.workflowList}>
+            {workflow.map((step, index) => (
+              <li key={step}>
+                <span className={styles.stepNumber}>
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span>{step}</span>
+                {index < workflow.length - 1 && (
+                  <span className={styles.arrow} aria-hidden="true">
+                    →
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+          <p>
+            Built for R&D leads, product managers, and technical strategy teams.
+          </p>
+        </aside>
+      </section>
+
+      <section className={styles.missions} aria-labelledby="recent-missions-title">
+        <div className={styles.sectionHeading}>
+          <div>
+            <p className={styles.sectionLabel}>Workspace</p>
+            <h2 id="recent-missions-title">Recent missions</h2>
+          </div>
+          <span>0 missions</span>
+        </div>
+        <EmptyMissions />
+      </section>
+    </main>
+  );
+}
