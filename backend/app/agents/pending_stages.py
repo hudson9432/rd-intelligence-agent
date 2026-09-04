@@ -6,10 +6,12 @@ external call, and — per invariant 1 in `AGENTS.md` — invent nothing: a stag
 whose phase is unbuilt returns an empty result rather than plausible-looking
 data.
 
-With the default set wired end to end, a mission therefore runs Search →
-Evidence → Analysis, exhausts its re-search budget with no evidence, and ends
-at `no_viable_direction`. That outcome is truthful, not a simulation of
-success. Replace each stage as its phase lands.
+Analysis is no longer among them: `PhaseCAnalysisStage` runs the real
+Analyst, Critic, and viability gate. Because Search and Evidence still return
+nothing, a default run reaches that real gate with an empty evidence set,
+exhausts its re-search budget, and ends at `no_viable_direction`. That outcome
+is truthful, not a simulation of success. Replace each remaining stage as its
+phase lands.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from collections.abc import Sequence
 from uuid import UUID
 
 from app.schemas.action_plan import ActionPlanCreate
-from app.schemas.analysis import PhaseCHandoff, TargetedResearchRequest
+from app.schemas.analysis import PhaseCHandoff
 from app.schemas.evidence_card import EvidenceCard
 from app.schemas.source_result import SourceResult
 from app.schemas.workflow import WorkflowDecision
@@ -47,52 +49,6 @@ class PendingEvidenceStage:
     ) -> Sequence[EvidenceCard]:
         del mission_id, sources
         return []
-
-
-class PendingAnalysisStage:
-    """Phase C placeholder.
-
-    The real Analyst, Critic, and viability gate exist in `app/agents/analyst.py`,
-    `app/agents/critic.py`, and `app/services/phase_c.py`, but they need
-    `DirectionGenerator`, `CritiqueQuestionGenerator`, and `QuestionReviewer`
-    providers that no adapter supplies yet. This mirrors what the real gate
-    does with an empty evidence set: ask for research once, then report no
-    viable direction when the budget is gone.
-    """
-
-    def analyze(
-        self,
-        *,
-        mission_goal: str,
-        evidence: Sequence[EvidenceCard],
-        research_exhausted: bool,
-    ) -> PhaseCHandoff:
-        if evidence:
-            return PhaseCHandoff(
-                status="no_viable_direction",
-                reason=(
-                    "Evidence is available but no analysis provider is wired in, "
-                    "so no direction can be judged."
-                ),
-            )
-
-        if research_exhausted:
-            return PhaseCHandoff(
-                status="no_viable_direction",
-                reason=(
-                    "The re-search budget is exhausted and no evidence was "
-                    "collected, so no direction has traceable support."
-                ),
-            )
-
-        return PhaseCHandoff(
-            status="research_required",
-            research_request=TargetedResearchRequest(
-                queries=[mission_goal],
-                reason="No evidence has been collected for the mission goal.",
-            ),
-            reason="No evidence is available to support a feasible direction.",
-        )
 
 
 class PendingDecisionStage:
