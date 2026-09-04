@@ -31,9 +31,16 @@ work. They remain in progress until structured generation/mock fixtures and the
 full deduplicate-filter-persist-event Evidence pipeline are complete.
 
 Phase 09 has landed as a graph skeleton: routing, the bounded re-search loop,
-event persistence, and mission status are implemented and tested, while the
-five stages it drives are placeholders. It remains in progress until real
-stages replace them.
+event persistence, and mission status are implemented and tested. Its Analysis
+stage is real; Search, Evidence, Decision, and Action are still placeholders.
+It remains in progress until real stages replace them.
+
+Phase 07/08 analysis is reachable from the workflow: `PhaseCAnalysisStage`
+composes the Analyst, the Critic, and the viability gate behind the graph's
+Analysis node. On the deterministic mock provider the pipeline produces a real,
+evidence-grounded PoC candidate when it is given evidence that records
+limitations. It cannot do so from a live mission yet, because the Search and
+Evidence stages that would supply that evidence are not built.
 
 The graph runs on LangGraph (`langgraph==1.2.11`). This is a deliberate,
 recorded exception to the `AGENTS.md` rule against adding a framework while a

@@ -14,11 +14,13 @@ from sqlalchemy.orm import Session
 from app.agents.orchestrator import WorkflowOrchestrator, WorkflowStages
 from app.agents.pending_stages import (
     PendingActionStage,
-    PendingAnalysisStage,
     PendingDecisionStage,
     PendingEvidenceStage,
     PendingSearchStage,
 )
+from app.core.config import Settings
+from app.core.llm import LLMClient
+from app.services.analysis_stage import PhaseCAnalysisStage
 from app.repositories.action_plan import ActionPlanRepository
 from app.repositories.agent_event import AgentEventRepository
 from app.schemas.agent_event import AgentEventCreate
@@ -37,17 +39,22 @@ class WorkflowAlreadyRunningError(RuntimeError):
         super().__init__(f"Mission {self.mission_id} is already running")
 
 
-def default_stages() -> WorkflowStages:
-    """The stage set for phases that have not landed yet.
+def default_stages(
+    *,
+    llm_client: LLMClient | None = None,
+    settings: Settings | None = None,
+) -> WorkflowStages:
+    """The current stage set.
 
-    Every stage here is a placeholder; see `app.agents.pending_stages` for what
-    each one does and does not do.
+    Analysis is real — `PhaseCAnalysisStage` runs the Analyst, the Critic, and
+    the viability gate. The rest are placeholders; see
+    `app.agents.pending_stages` for what each one does and does not do.
     """
 
     return WorkflowStages(
         search=PendingSearchStage(),
         evidence=PendingEvidenceStage(),
-        analysis=PendingAnalysisStage(),
+        analysis=PhaseCAnalysisStage(llm_client, settings=settings),
         decision=PendingDecisionStage(),
         action=PendingActionStage(),
     )

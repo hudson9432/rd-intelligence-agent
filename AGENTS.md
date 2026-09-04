@@ -36,9 +36,12 @@ Phases 1–2 (repository foundation and persistence) are complete:
 - A LangGraph workflow orchestrator with a bounded re-search loop, persisted
   `AgentEvent` transitions, mission status handling, and
   `POST /missions/{id}/run`. Routing and the iteration limit remain in
-  deterministic Python; LangGraph provides the runtime. Its five stages are
-  placeholders that return empty results, so a run reports
-  `no_viable_direction` rather than a simulated success.
+  deterministic Python; LangGraph provides the runtime.
+- The workflow's Analysis stage runs the real Analyst, Critic, and Phase C
+  viability gate through `LLMAnalysisAdapter`. Search, Evidence, Decision, and
+  Action remain placeholders that return empty results, so a default run
+  reaches the real gate with no evidence and reports `no_viable_direction`
+  rather than a simulated success.
 - Next.js App Router dashboard that lists missions and creates them through a
   Server Action, degrading to an explicit unavailable state when the API cannot
   be reached. Evidence, decision, and action views are not built.

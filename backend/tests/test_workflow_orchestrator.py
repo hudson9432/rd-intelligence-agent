@@ -13,11 +13,11 @@ from app.agents.orchestrator import (
 )
 from app.agents.pending_stages import (
     PendingActionStage,
-    PendingAnalysisStage,
     PendingDecisionStage,
     PendingEvidenceStage,
     PendingSearchStage,
 )
+from app.core.llm import MockLLMClient
 from app.schemas.action_plan import ActionPlanCreate, ActionTask
 from app.schemas.analysis import (
     EvaluatedClaim,
@@ -28,6 +28,7 @@ from app.schemas.analysis import (
 from app.schemas.evidence_card import EvidenceCard
 from app.schemas.source_result import SourceResult
 from app.schemas.workflow import WorkflowDecision, WorkflowStage, WorkflowState
+from app.services.analysis_stage import PhaseCAnalysisStage
 
 MISSION_ID = UUID("11111111-1111-1111-1111-111111111111")
 
@@ -180,7 +181,8 @@ def build_stages(
     return WorkflowStages(
         search=search or PendingSearchStage(),
         evidence=evidence or PendingEvidenceStage(),
-        analysis=analysis or PendingAnalysisStage(),
+        # The real Phase C gate, on the deterministic mock provider.
+        analysis=analysis or PhaseCAnalysisStage(MockLLMClient()),
         decision=decision or PendingDecisionStage(),
         action=action or PendingActionStage(),
     )
@@ -375,8 +377,12 @@ def test_the_goal_seeds_the_first_search_when_no_queries_are_given() -> None:
     assert search.calls[0][1] == [state.goal]
 
 
-def test_default_pending_stages_end_at_no_viable_direction() -> None:
-    """The unimplemented-phase default must report failure, not fake success."""
+def test_default_stages_end_at_no_viable_direction() -> None:
+    """With no Search or Evidence stage, the real gate must report failure.
+
+    This runs the actual Analyst, Critic, and viability gate on the mock
+    provider, so the outcome comes from Phase C rather than from a stub.
+    """
 
     result = WorkflowOrchestrator(build_stages()).run(make_state(max_iterations=2))
 

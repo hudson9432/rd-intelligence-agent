@@ -191,8 +191,9 @@ curl http://localhost:8000/missions/{mission_id}/events
 
 The graph runs on LangGraph; routing and the re-search bound stay in
 deterministic Python, with LangGraph's step limit only as a backstop. The
-graph, its loop, and its event stream are real. The stages behind it are not
-all built: an unimplemented phase returns an empty
+graph, its loop, its event stream, and its Analysis stage are real — Analysis
+runs the Analyst, the Critic, and the Phase C viability gate. Search,
+Evidence, Decision, and Action are not built yet: an unimplemented phase returns an empty
 result rather than invented data, so a run with the default stage set
 truthfully ends at `no_viable_direction`. Replace a stage as its phase lands;
 see `backend/app/agents/pending_stages.py`.
@@ -200,8 +201,8 @@ see `backend/app/agents/pending_stages.py`.
 ## Current placeholders
 
 - `backend/app/agents/pending_stages.py`: the Search, Evidence, Decision, and
-  Action workflow stages. The orchestrator graph that routes between them is
-  implemented; those stages are not.
+  Action workflow stages. The orchestrator graph and its Analysis stage are
+  implemented; those four are not.
 - Evidence extraction exists but is not yet wired to persistence and events.
 - Most `backend/app/services` modules beyond mission and research-source services.
 - Prompts beyond the initial Evidence extraction prompt.
