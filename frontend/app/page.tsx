@@ -3,6 +3,12 @@ import styles from "./page.module.css";
 
 const workflow = ["Research", "Evidence", "Evaluate", "Decide", "Act"];
 
+const overview = [
+  { label: "Active missions", value: "0", detail: "No missions running" },
+  { label: "Evidence collected", value: "0", detail: "Across all missions" },
+  { label: "Decisions ready", value: "0", detail: "Awaiting analysis" },
+];
+
 export default function Home() {
   return (
     <main className={styles.page}>
@@ -17,7 +23,13 @@ export default function Home() {
           </span>
           <span>R&D Intelligence Agent</span>
         </a>
-        <span className={styles.phaseBadge}>Foundation · Phase 1</span>
+        <nav className={styles.navigation} aria-label="Main navigation">
+          <a className={styles.activeNavLink} href="#missions">
+            Workspace
+          </a>
+          <a href="#workflow">How it works</a>
+          <span className={styles.phaseBadge}>Hackathon Preview</span>
+        </nav>
       </header>
 
       <section className={styles.hero} id="top">
@@ -28,21 +40,27 @@ export default function Home() {
             Coordinate specialized agents to discover evidence, challenge
             assumptions, rank R&D opportunities, and prepare a focused PoC plan.
           </p>
-          <button
-            className={styles.primaryButton}
-            type="button"
-            disabled
-            title="Mission creation will be enabled in the frontend workflow phase."
-          >
-            <span aria-hidden="true">＋</span>
-            New Research Mission
-          </button>
-          <p className={styles.buttonNote}>
-            Mission API ready · dashboard integration is planned.
-          </p>
+          <div className={styles.heroActions}>
+            <button
+              className={styles.primaryButton}
+              type="button"
+              disabled
+              title="Mission creation will be enabled in the frontend workflow phase."
+            >
+              <span aria-hidden="true">＋</span>
+              New Research Mission
+            </button>
+            <span className={styles.buttonNote}>
+              Mission API ready · dashboard integration is planned.
+            </span>
+          </div>
         </div>
 
-        <aside className={styles.workflowCard} aria-label="Product workflow">
+        <aside
+          className={styles.workflowCard}
+          id="workflow"
+          aria-label="Product workflow"
+        >
           <div className={styles.cardHeader}>
             <span>Intelligence workflow</span>
             <span className={styles.liveDot}>Ready</span>
@@ -68,7 +86,21 @@ export default function Home() {
         </aside>
       </section>
 
-      <section className={styles.missions} aria-labelledby="recent-missions-title">
+      <section className={styles.overview} aria-label="Workspace overview">
+        {overview.map((item) => (
+          <article className={styles.overviewItem} key={item.label}>
+            <p>{item.label}</p>
+            <strong>{item.value}</strong>
+            <span>{item.detail}</span>
+          </article>
+        ))}
+      </section>
+
+      <section
+        className={styles.missions}
+        id="missions"
+        aria-labelledby="recent-missions-title"
+      >
         <div className={styles.sectionHeading}>
           <div>
             <p className={styles.sectionLabel}>Workspace</p>
@@ -76,7 +108,9 @@ export default function Home() {
           </div>
           <span>0 missions</span>
         </div>
-        <EmptyMissions />
+        <div className={styles.missionSurface}>
+          <EmptyMissions />
+        </div>
       </section>
     </main>
   );
