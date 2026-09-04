@@ -28,9 +28,20 @@ Phase 1 (repository foundation) is complete:
   action.
 - Tests, pinned direct dependencies, and offline-compatible frontend build.
 
-Database models, mission APIs, source integrations, LLM providers, agents,
-LangGraph orchestration, and demo fixtures are not implemented yet. Do not
-claim that placeholders are working features.
+Phase 3 (research source tools) is also complete, ahead of phase 2, as a
+parallel track:
+
+- `SourceResult`/`SourceError` schemas and `POST /research/search`.
+- `search_arxiv()` and `search_github()` tools with bounded timeout/retry and
+  rate-limit handling (`app/tools/http.py`).
+- Normalized-URL and content-hash deduplication (`app/tools/dedupe.py`).
+- `MOCK_EXTERNAL_APIS` fixture mode (`demo/fixtures/`) that replays real,
+  frozen arXiv/GitHub responses through the same parsers as the live path, so
+  mock and real output are structurally identical.
+
+Database models, mission APIs, LLM providers, agents, and LangGraph
+orchestration are not implemented yet. Do not claim that placeholders are
+working features.
 
 Check [docs/ROADMAP.md](docs/ROADMAP.md) before starting work and update it only
 when a phase is genuinely complete.

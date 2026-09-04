@@ -1,0 +1,23 @@
+{
+  "total_count": 2,
+  "items": [
+    {
+      "full_name": "huggingface/transformers",
+      "html_url": "https://github.com/huggingface/transformers",
+      "description": "Transformers: state-of-the-art Machine Learning for Pytorch, TensorFlow, and JAX.",
+      "owner": { "login": "huggingface" },
+      "language": "Python",
+      "stargazers_count": 130000,
+      "created_at": "2018-10-29T13:56:00Z"
+    },
+    {
+      "full_name": "langchain-ai/langchain",
+      "html_url": "https://github.com/langchain-ai/langchain",
+      "description": "Build context-aware, reasoning applications with LangChain's flexible framework.",
+      "owner": { "login": "langchain-ai" },
+      "language": "Python",
+      "stargazers_count": 90000,
+      "created_at": "2022-10-17T02:58:36Z"
+    }
+  ]
+}

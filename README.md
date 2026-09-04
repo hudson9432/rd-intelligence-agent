@@ -21,7 +21,8 @@ workflow are placeholders for later phases.
 | FastAPI health API and initial schemas | Complete |
 | Next.js dashboard shell | Complete |
 | SQLite persistence and mission APIs | Next |
-| Research tools, LLM providers, and agents | Planned |
+| arXiv/GitHub research source tools (`POST /research/search`) | Complete |
+| LLM providers and agents | Planned |
 | Deterministic offline demo | Planned |
 
 See [the implementation roadmap](docs/ROADMAP.md) for the ordered delivery
@@ -40,8 +41,8 @@ phases and [the architecture guide](docs/ARCHITECTURE.md) for system boundaries.
 │   │   ├── models/       # Placeholder: database models
 │   │   ├── prompts/      # Placeholder: versioned LLM prompts
 │   │   ├── schemas/      # Pydantic API/domain schemas
-│   │   ├── services/     # Placeholder: application services
-│   │   └── tools/        # Placeholder: deterministic source tools
+│   │   ├── services/     # research_source.py: arXiv/GitHub search orchestration
+│   │   └── tools/        # arxiv.py, github.py, http.py, dedupe.py
 │   ├── tests/
 │   ├── .env.example
 │   └── requirements.txt
@@ -50,7 +51,7 @@ phases and [the architecture guide](docs/ARCHITECTURE.md) for system boundaries.
 │   ├── components/
 │   ├── lib/
 │   └── types/
-├── demo/                 # Placeholder: offline demo fixtures
+├── demo/                 # fixtures/: frozen arXiv/GitHub responses for mock mode
 ├── docs/                 # Architecture and implementation roadmap
 ├── AGENTS.md             # Required context and invariants for coding agents
 └── CONTRIBUTING.md       # Branch, test, and pull-request workflow
@@ -128,18 +129,33 @@ the populated `.env` file or API keys.
 | `LLM_API_KEY` | Secret provider credential placeholder | empty |
 | `LLM_MODEL` | Model name placeholder | empty |
 | `MOCK_LLM` | Future deterministic LLM mode | `true` |
-| `MOCK_EXTERNAL_APIS` | Future deterministic source mode | `true` |
+| `MOCK_EXTERNAL_APIS` | Replay `demo/fixtures/` instead of calling arXiv/GitHub | `true` |
 | `DEMO_MODE` | Future offline end-to-end demo mode | `false` |
+
+## Research source search
+
+`POST /research/search` queries arXiv and GitHub concurrently, normalizes and
+deduplicates the combined results, and reports a single unavailable source in
+`errors` instead of failing the request:
+
+```bash
+curl -X POST http://localhost:8000/research/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "transformers", "max_results": 10}'
+```
+
+With `MOCK_EXTERNAL_APIS=true` (the default), it replays the fixed responses in
+`demo/fixtures/` through the same parsers as the live path, so mock and real
+output are structurally identical.
 
 ## Current placeholders
 
 - `backend/app/agents`: Orchestrator, Search, Evidence, Analyst, Critic, and
   Action agents.
 - `backend/app/db` and `backend/app/models`: SQLite persistence.
-- `backend/app/services` and `backend/app/tools`: research source and workflow
-  services.
 - `backend/app/prompts`: prompts kept separate from business logic.
-- `docs` and `demo`: architecture notes and deterministic demo fixtures.
+- `docs`: architecture notes. `demo/`: research-source fixtures exist; the full
+  end-to-end demo scenario is still planned (phase 14).
 - The dashboard's **New Research Mission** action remains disabled until the
   mission API is implemented.
 
