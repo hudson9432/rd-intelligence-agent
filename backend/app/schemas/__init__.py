@@ -14,7 +14,13 @@ from app.schemas.research_mission import (
     ResearchMissionUpdate,
 )
 from app.schemas.source_document import SourceDocument, SourceDocumentCreate
-from app.schemas.source_result import SourceResult
+from app.schemas.source_result import (
+    SourceError,
+    SourceResult,
+    SourceSearchRequest,
+    SourceSearchResponse,
+    SourceType,
+)
 from app.schemas.technology_opportunity import (
     TechnologyOpportunity,
     TechnologyOpportunityCreate,
@@ -40,7 +46,11 @@ __all__ = [
     "ResearchMissionUpdate",
     "SourceDocument",
     "SourceDocumentCreate",
+    "SourceError",
     "SourceResult",
+    "SourceSearchRequest",
+    "SourceSearchResponse",
+    "SourceType",
     "TechnologyOpportunity",
     "TechnologyOpportunityCreate",
 ]
