@@ -6,7 +6,7 @@ Status values: `complete`, `in progress`, `next`, `planned`, `optional`.
 | --- | --- | --- |
 | 01 | complete | Repository, FastAPI health API, schemas, Next.js shell, tests |
 | 02 | complete | SQLite persistence, repositories, mission/event APIs |
-| 03 | next | arXiv and GitHub tools, normalization, deduplication, mock sources |
+| 03 | complete | arXiv and GitHub tools, normalization, deduplication, mock sources |
 | 04 | in progress | Provider-independent LLM client and deterministic mock LLM |
 | 05 | planned | Search Agent |
 | 06 | in progress | Evidence Agent with strict provenance |
