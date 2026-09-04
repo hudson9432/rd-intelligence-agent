@@ -4,7 +4,6 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-import pytest
 
 from app.agents.analyst import AnalystAgent
 from app.agents.critic import CriticAgent
@@ -20,7 +19,6 @@ from app.schemas.analysis import (
 from app.schemas.evidence_card import EvidenceCard
 from app.services.phase_c import build_phase_c_handoff, classify_claim_verdict
 from app.services.scoring import (
-    UnknownEvidenceReferenceError,
     direction_evidence_coverage,
     question_diversity,
 )
@@ -260,16 +258,41 @@ def test_analyst_keeps_best_supported_version_of_duplicate_direction() -> None:
     assert outcome.active_directions[0].evidence_coverage == 0.9
 
 
-def test_analyst_rejects_an_unknown_evidence_reference() -> None:
+def test_analyst_discards_a_direction_with_an_unknown_evidence_reference() -> None:
+    """A fabricated citation voids its own direction, not the whole analysis.
+
+    This used to raise, which meant one invented id from the generator
+    destroyed an entire mission after its evidence had been gathered. The
+    reference is still rejected — the direction never reaches the output — but
+    the remaining directions survive.
+    """
+
     mission_id = uuid4()
     card = evidence_card(mission_id=mission_id, relevance=0.9, confidence=0.9)
-    draft = direction("d1", "Invalid", [uuid4()])
+    invalid = direction("d1", "Invalid", [uuid4()])
 
-    with pytest.raises(UnknownEvidenceReferenceError):
-        AnalystAgent(FixedDirectionGenerator([draft])).analyze(
-            mission_goal="Find a direction.",
-            evidence=[card],
-        )
+    outcome = AnalystAgent(FixedDirectionGenerator([invalid])).analyze(
+        mission_goal="Find a direction.",
+        evidence=[card],
+    )
+
+    assert outcome.status == "research_required"
+    assert outcome.active_directions == []
+
+
+def test_analyst_keeps_valid_directions_alongside_an_invalid_one() -> None:
+    mission_id = uuid4()
+    card = evidence_card(mission_id=mission_id, relevance=0.9, confidence=0.9)
+    invalid = direction("bad", "Invalid", [uuid4()])
+    valid = direction("good", "Valid", [card.id])
+
+    outcome = AnalystAgent(FixedDirectionGenerator([invalid, valid])).analyze(
+        mission_goal="Find a direction.",
+        evidence=[card],
+    )
+
+    assert outcome.status == "ready"
+    assert [item.id for item in outcome.active_directions] == ["good"]
 
 
 def test_question_diversity_detects_homogeneous_questions() -> None:

@@ -55,6 +55,16 @@ PoC. Code calculates support and counterevidence strength from the cited
 evidence cards. Missing review or missing evidence remains unknown and is never
 converted into negative evidence.
 
+A review that cannot be applied counts as missing. Every generator here is a
+language model, and a model can cite an identifier that does not exist,
+contradict itself by opposing the evidence it also cites as support, review a
+claim that is not under analysis, or return two reviews for one claim. Such a
+review is discarded and its claim is judged as if no review arrived. The same
+rule governs the Analyst and the Critic: a direction or question that cites
+evidence outside the supplied set is dropped, and the remaining ones are kept.
+Rejecting the invented reference is required by invariant 2; rejecting
+everything alongside it is not, and discards work that is sound.
+
 Each claim receives one of four verdicts:
 
 - supported: meaningful support with weak counterevidence;
