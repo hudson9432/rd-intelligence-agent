@@ -69,13 +69,24 @@ def build_phase_c_handoff(
             reason="No evidence-backed direction has been generated.",
         )
 
-    if critique.status == "research_required":
+    if critique.status == "research_required" and not research_exhausted:
         assert critique.research_request is not None
-        return _research_or_no_viable(
-            research_exhausted=research_exhausted,
-            request=critique.research_request,
+        return PhaseCHandoff(
+            status="research_required",
+            research_request=critique.research_request,
             reason="Material critique questions still require evidence.",
         )
+
+    # Once the budget is spent, outstanding critique questions no longer decide
+    # the outcome. A critic always has another question; that is not the same
+    # as no direction being viable, and this contract reserves
+    # `no_viable_direction` for "the research budget is exhausted *and* no
+    # direction satisfies the core-claim viability rules". Short-circuiting
+    # here skipped the second half of that test entirely, so claim evaluation
+    # never ran on a real provider: a live critic attaches a suggested search
+    # to almost every accepted question, which pinned the critique at
+    # `research_required` no matter how much evidence had been gathered.
+    # Falling through lets the evidence decide.
 
     evidence_by_id = evidence_index(evidence)
     assessments = _evaluate_claims(

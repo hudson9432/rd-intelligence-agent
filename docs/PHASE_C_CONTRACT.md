@@ -91,6 +91,12 @@ PhaseCHandoff.status is exactly one of:
   rules. No PoC candidate is emitted. Missing evidence never causes this state
   before the bounded re-search opportunity has been used.
 
+Outstanding critique questions request research only while budget remains. Once
+D reports the budget exhausted, they stop deciding the outcome and the claim
+verdicts do: a critic can always ask another question, and that is not the same
+as no direction being viable. Any question left unanswered travels into the PoC
+candidate as an unresolved question, which is what a PoC is for.
+
 C therefore owns identification of targeted evidence gaps and the viability
 gate. The Search Agent converts those gaps and suggested searches into final,
 history-aware queries. D owns loop execution, iteration limits, persistence,
