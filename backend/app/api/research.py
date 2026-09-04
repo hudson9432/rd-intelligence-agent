@@ -17,4 +17,9 @@ async def search_sources(request: SourceSearchRequest) -> SourceSearchResponse:
     """
 
     service = ResearchSourceService()
-    return await service.search(request.query, request.max_results)
+    return await service.search(
+        request.query,
+        sources=request.sources,
+        max_results_per_source=request.max_results_per_source,
+        published_after=request.published_after,
+    )

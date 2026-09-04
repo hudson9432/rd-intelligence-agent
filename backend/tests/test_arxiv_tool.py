@@ -2,10 +2,12 @@
 
 from pathlib import Path
 
-import httpx
+import httpx2 as httpx
+import pytest
 
 from app.schemas.source_result import SourceType
 from app.tools.arxiv import parse_feed, search_arxiv
+from app.tools.http import SourceUnavailableError
 
 FIXTURE = (
     Path(__file__).resolve().parents[2] / "demo" / "fixtures" / "arxiv_response.xml"
@@ -22,8 +24,7 @@ def test_parse_feed_maps_entries_without_fabricating_fields() -> None:
     assert first.url == "http://arxiv.org/abs/1706.03762v7"
     assert "Ashish Vaswani" in first.authors
     assert first.published_at is not None
-    assert first.normalized_url
-    assert first.content_hash
+    assert first.summary
 
 
 def test_parse_feed_skips_entries_missing_required_fields() -> None:
@@ -51,7 +52,13 @@ async def test_search_arxiv_uses_query_and_max_results_params() -> None:
     assert request.url.params["search_query"] == "all:transformers"
     assert request.url.params["max_results"] == "5"
 
-    exclude = {"id", "retrieved_at"}
-    actual = [r.model_dump(exclude=exclude) for r in results]
-    expected = [r.model_dump(exclude=exclude) for r in parse_feed(FIXTURE)]
-    assert actual == expected
+    assert results == parse_feed(FIXTURE)
+
+
+async def test_search_arxiv_wraps_malformed_xml() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="not xml")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(SourceUnavailableError, match="malformed XML"):
+            await search_arxiv("transformers", 5, client=client)

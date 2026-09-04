@@ -5,7 +5,7 @@
     <id>http://arxiv.org/abs/1706.03762v7</id>
     <title>Attention Is All You Need</title>
     <summary>
-      Introduces the Transformer, a sequence transduction architecture based
+      We propose a new simple network architecture, the Transformer, based
       solely on attention mechanisms, dispensing with recurrence and
       convolutions entirely.
     </summary>
@@ -14,15 +14,18 @@
     <author><name>Noam Shazeer</name></author>
     <author><name>Niki Parmar</name></author>
     <author><name>Jakob Uszkoreit</name></author>
+    <author><name>Llion Jones</name></author>
+    <author><name>Aidan N. Gomez</name></author>
+    <author><name>Lukasz Kaiser</name></author>
     <author><name>Illia Polosukhin</name></author>
   </entry>
   <entry>
     <id>http://arxiv.org/abs/2005.14165v4</id>
     <title>Language Models are Few-Shot Learners</title>
     <summary>
-      Shows that scaling an autoregressive language model to 175 billion
-      parameters (GPT-3) produces strong few-shot performance across many NLP
-      tasks without gradient-based fine-tuning.
+      Here we show that scaling up language models greatly improves
+      task-agnostic, few-shot performance, sometimes even reaching
+      competitiveness with prior state-of-the-art fine-tuning approaches.
     </summary>
     <published>2020-05-28T17:29:03Z</published>
     <author><name>Tom B. Brown</name></author>

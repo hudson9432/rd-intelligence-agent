@@ -19,7 +19,7 @@ def test_normalize_url_is_stable_regardless_of_query_order() -> None:
 
 def test_content_hash_is_case_and_whitespace_insensitive() -> None:
     a = content_hash("Attention Is All You Need", "summary text")
-    b = content_hash("attention is all you need", "  summary text  ")
+    b = content_hash("attention   is all you need", "  summary\ntext  ")
 
     assert a == b
 
@@ -36,14 +36,14 @@ def _result(url: str, content: str) -> SourceResult:
         source_type=SourceType.ARXIV,
         title=content,
         url=url,
-        normalized_url=normalize_url(url),
-        content_hash=content_hash(content),
     )
 
 
 def test_dedupe_results_drops_repeat_normalized_url() -> None:
     first = _result("https://arxiv.org/abs/1706.03762", "Attention Is All You Need")
-    duplicate = _result("https://arxiv.org/abs/1706.03762#section-2", "Attention Is All You Need")
+    duplicate = _result(
+        "https://arxiv.org/abs/1706.03762#section-2", "Attention Is All You Need"
+    )
 
     deduped = dedupe_results([first, duplicate])
 
@@ -51,7 +51,9 @@ def test_dedupe_results_drops_repeat_normalized_url() -> None:
 
 
 def test_dedupe_results_drops_repeat_content_hash_across_urls() -> None:
-    abstract_page = _result("https://arxiv.org/abs/1706.03762", "Attention Is All You Need")
+    abstract_page = _result(
+        "https://arxiv.org/abs/1706.03762", "Attention Is All You Need"
+    )
     pdf_link = _result("https://arxiv.org/pdf/1706.03762", "Attention Is All You Need")
 
     deduped = dedupe_results([abstract_page, pdf_link])

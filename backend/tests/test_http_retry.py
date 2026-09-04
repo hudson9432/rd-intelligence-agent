@@ -1,6 +1,6 @@
 """Tests for the bounded-retry HTTP helper shared by external source tools."""
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 from app.tools.http import DEFAULT_TIMEOUT, SourceUnavailableError, get_with_retry
@@ -51,15 +51,18 @@ async def test_get_with_retry_raises_after_exhausting_attempts() -> None:
             await get_with_retry(client, "https://example.com/x", max_attempts=2)
 
 
-async def test_get_with_retry_does_not_retry_client_errors() -> None:
+@pytest.mark.parametrize("status_code", [403, 404])
+async def test_get_with_retry_wraps_client_errors_without_retry(
+    status_code: int,
+) -> None:
     attempts = {"count": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:
         attempts["count"] += 1
-        return httpx.Response(404)
+        return httpx.Response(status_code)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(SourceUnavailableError, match=f"HTTP {status_code}"):
             await get_with_retry(client, "https://example.com/x", max_attempts=3)
 
     assert attempts["count"] == 1
@@ -108,3 +111,9 @@ async def test_get_with_retry_honors_retry_after_header() -> None:
 
     assert response.text == "ok"
     assert attempts["count"] == 2
+
+
+async def test_get_with_retry_rejects_invalid_attempt_count() -> None:
+    async with httpx.AsyncClient() as client:
+        with pytest.raises(ValueError, match="at least 1"):
+            await get_with_retry(client, "https://example.com/x", max_attempts=0)

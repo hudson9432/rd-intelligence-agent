@@ -8,10 +8,11 @@ The intended product loop is:
 
 > Research → Evidence → Evaluate → Decide → Act
 
-This repository currently contains the **phase 1 foundation**: a FastAPI
-backend with configuration and health checks, plus a Next.js dashboard shell.
-Database persistence, external research providers, LLM calls, agents, and the
-workflow are placeholders for later phases.
+This repository contains the **phase 1–2 foundation**: a FastAPI backend,
+SQLite persistence and mission APIs, plus a Next.js dashboard shell. It also
+includes early provider-independent LLM and provenance-safe Evidence extraction
+components for parallel development. arXiv/GitHub research tools are available;
+the end-to-end agent workflow remains forthcoming.
 
 ## Project status
 
@@ -20,9 +21,10 @@ workflow are placeholders for later phases.
 | Repository and local environments | Complete |
 | FastAPI health API and initial schemas | Complete |
 | Next.js dashboard shell | Complete |
-| SQLite persistence and mission APIs | Next |
+| SQLite persistence and mission APIs | Complete |
 | arXiv/GitHub research source tools (`POST /research/search`) | Complete |
-| LLM providers and agents | Planned |
+| LLM provider and Evidence extraction foundations | In progress |
+| End-to-end agent workflow | Planned |
 | Deterministic offline demo | Planned |
 
 See [the implementation roadmap](docs/ROADMAP.md) for the ordered delivery
@@ -35,14 +37,15 @@ phases and [the architecture guide](docs/ARCHITECTURE.md) for system boundaries.
 ├── backend/
 │   ├── app/
 │   │   ├── api/          # HTTP routes
-│   │   ├── agents/       # Placeholder: agent implementations
+│   │   ├── agents/       # Separately testable agent components
 │   │   ├── core/         # Configuration and logging
-│   │   ├── db/           # Placeholder: persistence setup
-│   │   ├── models/       # Placeholder: database models
-│   │   ├── prompts/      # Placeholder: versioned LLM prompts
+│   │   ├── db/           # SQLite engine and sessions
+│   │   ├── models/       # SQLAlchemy persistence models
+│   │   ├── prompts/      # Versioned LLM prompts
 │   │   ├── schemas/      # Pydantic API/domain schemas
-│   │   ├── services/     # research_source.py: arXiv/GitHub search orchestration
-│   │   └── tools/        # arxiv.py, github.py, http.py, dedupe.py
+│   │   ├── repositories/ # Typed persistence operations
+│   │   ├── services/     # Mission and research-source use cases
+│   │   └── tools/        # arXiv, GitHub, HTTP retry, and dedupe tools
 │   ├── tests/
 │   ├── .env.example
 │   └── requirements.txt
@@ -63,7 +66,7 @@ phases and [the architecture guide](docs/ARCHITECTURE.md) for system boundaries.
 - Node.js 20.9 or newer (developed with Node.js 22.14.0)
 - npm 10 or newer
 
-No API key is required for the current phase.
+No API key is required while `MOCK_LLM=true` (the default).
 
 ## Backend setup
 
@@ -88,6 +91,18 @@ Expected response:
 
 ```json
 {"status":"ok","service":"rd-intelligence-agent-backend"}
+```
+
+Mission API:
+
+```bash
+curl -X POST http://localhost:8000/missions \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Computer-use agents","goal":"Find a one-week PoC"}'
+
+curl http://localhost:8000/missions
+curl http://localhost:8000/missions/{mission_id}
+curl http://localhost:8000/missions/{mission_id}/events
 ```
 
 Run backend tests from `backend/`:
@@ -125,11 +140,14 @@ the populated `.env` file or API keys.
 | `APP_ENV` | Runtime environment name | `development` |
 | `LOG_LEVEL` | Python log level | `INFO` |
 | `CORS_ORIGINS` | JSON list of allowed frontend origins | `["http://localhost:3000"]` |
-| `LLM_BASE_URL` | OpenAI-compatible endpoint placeholder | empty |
-| `LLM_API_KEY` | Secret provider credential placeholder | empty |
-| `LLM_MODEL` | Model name placeholder | empty |
-| `MOCK_LLM` | Future deterministic LLM mode | `true` |
-| `MOCK_EXTERNAL_APIS` | Replay `demo/fixtures/` instead of calling arXiv/GitHub | `true` |
+| `DATABASE_URL` | SQLAlchemy database URL | `sqlite:///./data/rd_intelligence.db` |
+| `DATABASE_ECHO` | Log generated SQL for debugging | `false` |
+| `LLM_BASE_URL` | OpenAI-compatible API base URL | empty |
+| `LLM_API_KEY` | Secret provider credential | empty |
+| `LLM_MODEL` | Provider model name | empty |
+| `MOCK_LLM` | Use the deterministic, offline LLM client | `true` |
+| `GITHUB_TOKEN` | Optional GitHub API credential for higher rate limits | empty |
+| `MOCK_EXTERNAL_APIS` | Replay deterministic arXiv/GitHub fixtures | `true` |
 | `DEMO_MODE` | Future offline end-to-end demo mode | `false` |
 
 ## Research source search
@@ -141,7 +159,7 @@ deduplicates the combined results, and reports a single unavailable source in
 ```bash
 curl -X POST http://localhost:8000/research/search \
   -H "Content-Type: application/json" \
-  -d '{"query": "transformers", "max_results": 10}'
+  -d '{"query":"transformers","sources":["arxiv","github"],"max_results_per_source":5}'
 ```
 
 With `MOCK_EXTERNAL_APIS=true` (the default), it replays the fixed responses in
@@ -150,14 +168,14 @@ output are structurally identical.
 
 ## Current placeholders
 
-- `backend/app/agents`: Orchestrator, Search, Evidence, Analyst, Critic, and
-  Action agents.
-- `backend/app/db` and `backend/app/models`: SQLite persistence.
-- `backend/app/prompts`: prompts kept separate from business logic.
-- `docs`: architecture notes. `demo/`: research-source fixtures exist; the full
-  end-to-end demo scenario is still planned (phase 14).
+- `backend/app/agents`: Orchestrator, Search, Analyst, Critic, and Action agents;
+  Evidence extraction exists but is not yet wired to persistence and events.
+- Most `backend/app/services` modules beyond mission and research-source services.
+- Prompts beyond the initial Evidence extraction prompt.
+- `demo`: research-source fixtures exist; the complete offline scenario remains
+  planned.
 - The dashboard's **New Research Mission** action remains disabled until the
-  mission API is implemented.
+  frontend workflow phase connects it to the implemented mission API.
 
 ## Collaborating
 
@@ -165,8 +183,7 @@ Before implementing a task:
 
 1. Read [AGENTS.md](AGENTS.md), including its product invariants and definition
    of done. Coding agents must also obey any nested `AGENTS.md` files.
-2. Review [the roadmap](docs/ROADMAP.md) and choose a scoped GitHub issue. The
-   next planned phase is SQLite persistence and mission APIs.
+2. Review [the roadmap](docs/ROADMAP.md) and choose a scoped GitHub issue.
 3. Create a focused branch, avoid overlapping ownership, and update backend and
    frontend contracts together when a schema changes.
 4. Follow [CONTRIBUTING.md](CONTRIBUTING.md) and open a pull request using the
@@ -179,6 +196,18 @@ Critical rules for every contributor:
 - Never place secrets in code, logs, fixtures, events, or commits.
 - Keep tests offline and deterministic with mock providers.
 - Clearly label placeholders and remaining evidence gaps.
+
+## Development and AI disclosure
+
+The repository foundation, collaboration setup, SQLite persistence, and mission
+APIs were prepared before the on-site product workflow work. OpenAI Codex was
+used to assist with scaffolding, implementation, tests, documentation, and
+repository operations. All changes remain visible in Git history.
+
+Current third-party foundations include Python, FastAPI, Pydantic, SQLAlchemy,
+SQLite, Next.js, React, TypeScript, arXiv, GitHub, and their locked package
+dependencies. Live model providers, datasets, generated media, and sponsor
+tools must be added to this disclosure when introduced.
 
 ## License
 

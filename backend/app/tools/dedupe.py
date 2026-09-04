@@ -2,12 +2,13 @@
 
 import hashlib
 from typing import TYPE_CHECKING
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 if TYPE_CHECKING:
     from app.schemas.source_result import SourceResult
 
-_TRACKING_PARAM_PREFIXES = ("utm_", "ref", "source")
+_TRACKING_PARAM_PREFIXES = ("utm_",)
+_TRACKING_PARAM_NAMES = {"ref", "source"}
 
 
 def normalize_url(url: str) -> str:
@@ -25,11 +26,12 @@ def normalize_url(url: str) -> str:
     path = parts.path.rstrip("/") or "/"
 
     kept_query = [
-        pair
-        for pair in parts.query.split("&")
-        if pair and not pair.split("=", 1)[0].lower().startswith(_TRACKING_PARAM_PREFIXES)
+        (name, value)
+        for name, value in parse_qsl(parts.query, keep_blank_values=True)
+        if name.lower() not in _TRACKING_PARAM_NAMES
+        and not name.lower().startswith(_TRACKING_PARAM_PREFIXES)
     ]
-    query = "&".join(sorted(kept_query))
+    query = urlencode(sorted(kept_query))
 
     return urlunsplit((scheme, netloc, path, query, ""))
 
@@ -41,7 +43,9 @@ def content_hash(*parts: str) -> str:
     (e.g. an arXiv abstract page vs. its PDF link).
     """
 
-    normalized = "\x1f".join(part.strip().lower() for part in parts if part)
+    normalized = "\x1f".join(
+        " ".join(part.split()).casefold() for part in parts if part
+    )
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
@@ -57,10 +61,16 @@ def dedupe_results(results: list["SourceResult"]) -> list["SourceResult"]:
     deduped: list[SourceResult] = []
 
     for result in results:
-        if result.normalized_url in seen_urls or result.content_hash in seen_hashes:
+        normalized_result_url = normalize_url(result.url)
+        result_hash = content_hash(
+            result.title,
+            result.summary or "",
+            result.content or "",
+        )
+        if normalized_result_url in seen_urls or result_hash in seen_hashes:
             continue
-        seen_urls.add(result.normalized_url)
-        seen_hashes.add(result.content_hash)
+        seen_urls.add(normalized_result_url)
+        seen_hashes.add(result_hash)
         deduped.append(result)
 
     return deduped

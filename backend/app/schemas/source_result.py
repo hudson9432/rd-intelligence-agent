@@ -1,51 +1,46 @@
-"""Normalized external research source result."""
+"""Provider-neutral contracts for external research-source search."""
 
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
-from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-def utc_now() -> datetime:
-    """Return a timezone-aware UTC timestamp."""
-
-    return datetime.now(UTC)
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SourceType(StrEnum):
-    """External sources the Search tool knows how to query."""
+    """External sources supported by the MVP search service."""
 
     ARXIV = "arxiv"
     GITHUB = "github"
 
 
-class SourceResult(BaseModel):
-    """A single normalized, deduplicated result from an external source.
+def _normalize_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        raise ValueError("datetime must include a timezone")
+    return value.astimezone(UTC)
 
-    Every field must come from the source response. Unknown fields stay
-    `None`/empty rather than guessed, per the product invariant against
-    fabricating papers, repositories, or URLs.
-    """
+
+class SourceResult(BaseModel):
+    """Normalized source data before mission-scoped persistence."""
 
     model_config = ConfigDict(extra="forbid")
 
-    id: UUID = Field(default_factory=uuid4)
     source_type: SourceType
     title: str = Field(min_length=1, max_length=500)
     url: str = Field(min_length=1)
-    normalized_url: str = Field(min_length=1)
-    content_hash: str = Field(min_length=1)
-    summary: str | None = None
-    authors: list[str] = Field(default_factory=list)
     published_at: datetime | None = None
+    authors: list[str] = Field(default_factory=list)
+    summary: str | None = None
+    content: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-    retrieved_at: datetime = Field(default_factory=utc_now)
+
+    _normalize_published_at = field_validator("published_at")(_normalize_utc)
 
 
 class SourceError(BaseModel):
-    """A typed, recorded failure for a single source, not a fabricated result."""
+    """A typed source failure returned without fabricating a result."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -54,16 +49,30 @@ class SourceError(BaseModel):
 
 
 class SourceSearchRequest(BaseModel):
-    """Request contract for POST /research/search."""
+    """Request contract for ``POST /research/search``."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     query: str = Field(min_length=1, max_length=500)
-    max_results: int = Field(default=10, ge=1, le=50)
+    sources: list[SourceType] = Field(
+        default_factory=lambda: [SourceType.ARXIV, SourceType.GITHUB],
+        min_length=1,
+    )
+    max_results_per_source: int = Field(default=5, ge=1, le=50)
+    published_after: datetime | None = None
+
+    _normalize_published_after = field_validator("published_after")(_normalize_utc)
+
+    @field_validator("sources")
+    @classmethod
+    def reject_duplicate_sources(cls, value: list[SourceType]) -> list[SourceType]:
+        if len(value) != len(set(value)):
+            raise ValueError("sources must not contain duplicates")
+        return value
 
 
 class SourceSearchResponse(BaseModel):
-    """Response contract for POST /research/search."""
+    """Normalized results plus source-specific graceful failures."""
 
     model_config = ConfigDict(extra="forbid")
 

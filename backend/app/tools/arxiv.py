@@ -4,14 +4,13 @@ Queries the public arXiv Atom API and maps each entry to a `SourceResult`.
 Never invents a title, author, or URL: fields the feed omits stay empty.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from xml.etree import ElementTree
 
-import httpx
+import httpx2 as httpx
 
 from app.schemas.source_result import SourceResult, SourceType
-from app.tools.dedupe import content_hash, normalize_url
-from app.tools.http import get_with_retry
+from app.tools.http import SourceUnavailableError, get_with_retry
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 _ATOM_NS = "{http://www.w3.org/2005/Atom}"
@@ -38,11 +37,14 @@ async def search_arxiv(
             "max_results": str(max_results),
         },
     )
-    return parse_feed(response.text)
+    try:
+        return parse_feed(response.text)
+    except ElementTree.ParseError as error:
+        raise SourceUnavailableError("arXiv returned malformed XML") from error
 
 
 def parse_feed(feed_xml: str) -> list[SourceResult]:
-    root = ElementTree.fromstring(feed_xml)  # noqa: S314 - trusted arXiv API response
+    root = ElementTree.fromstring(feed_xml)
     results: list[SourceResult] = []
 
     for entry in root.findall(f"{_ATOM_NS}entry"):
@@ -66,8 +68,6 @@ def parse_feed(feed_xml: str) -> list[SourceResult]:
                 source_type=SourceType.ARXIV,
                 title=title,
                 url=url,
-                normalized_url=normalize_url(url),
-                content_hash=content_hash(title, summary or ""),
                 summary=summary,
                 authors=authors,
                 published_at=published,
@@ -86,6 +86,9 @@ def _parse_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(UTC)

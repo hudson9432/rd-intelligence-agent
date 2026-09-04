@@ -20,28 +20,37 @@ innovation teams.
 
 ## Current state
 
-Phase 1 (repository foundation) is complete:
+Phases 1–2 (repository foundation and persistence) are complete:
 
 - FastAPI application, environment settings, logging, and `GET /health`.
 - Initial `ResearchMission` and `AgentEvent` Pydantic schemas.
+- SQLAlchemy models and repositories for missions, sources, evidence,
+  opportunities, coverage reports, action plans, and agent events.
+- SQLite initialization with UTC timestamps, JSON fields, provenance checks,
+  and mission/source cascade behavior.
+- Mission create/list/get and event-list APIs.
+- A provider-independent synchronous LLM client, deterministic mock client, and
+  an OpenAI-compatible implementation with bounded retries.
+- A standalone Evidence extraction component with Pydantic validation and
+  exact source-snippet provenance checks.
 - Next.js App Router dashboard shell with an intentionally disabled mission
   action.
 - Tests, pinned direct dependencies, and offline-compatible frontend build.
 
-Phase 3 (research source tools) is also complete, ahead of phase 2, as a
-parallel track:
+Phase 3 research-source tools are implemented:
 
 - `SourceResult`/`SourceError` schemas and `POST /research/search`.
 - `search_arxiv()` and `search_github()` tools with bounded timeout/retry and
-  rate-limit handling (`app/tools/http.py`).
+  graceful rate-limit handling (`app/tools/http.py`).
 - Normalized-URL and content-hash deduplication (`app/tools/dedupe.py`).
 - `MOCK_EXTERNAL_APIS` fixture mode (`demo/fixtures/`) that replays real,
-  frozen arXiv/GitHub responses through the same parsers as the live path, so
-  mock and real output are structurally identical.
+  frozen arXiv/GitHub responses through the live parsers. Mock responses are
+  deterministic and honor source selection, per-source limits, and date filters.
 
-Database models, mission APIs, LLM providers, agents, and LangGraph
-orchestration are not implemented yet. Do not claim that placeholders are
-working features.
+The complete Evidence persistence/event pipeline, Search and other agents,
+LangGraph orchestration, and an end-to-end demo are not implemented yet. The
+source, LLM, and Evidence components are not wired into a public mission
+workflow. Do not claim that these partial components form an end-to-end feature.
 
 Check [docs/ROADMAP.md](docs/ROADMAP.md) before starting work and update it only
 when a phase is genuinely complete.
@@ -148,6 +157,7 @@ A change is complete only when:
 
 ## Recommended task order
 
-Follow the numbered roadmap. The next implementation phase is **02 — persistence
-and mission APIs**. Calendar integration remains optional and should be done
-only after the core research-to-action loop is reliable.
+Follow the numbered roadmap. Complete the in-progress LLM/Evidence foundations
+before wiring the Search Agent and orchestrator. Calendar integration remains
+optional and should be done only after the core research-to-action loop is
+reliable.

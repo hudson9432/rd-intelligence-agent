@@ -1,7 +1,8 @@
 # Demo fixtures
 
-`fixtures/arxiv_response.xml` and `fixtures/github_response.json` are frozen,
-real arXiv/GitHub API responses used by `ResearchSourceService` when
+`fixtures/arxiv_response.xml` and `fixtures/github_response.json` contain frozen,
+curated fields from real arXiv/GitHub API responses used by
+`ResearchSourceService` when
 `MOCK_EXTERNAL_APIS=true` (the default). They are fed through the exact same
 parsers (`app/tools/arxiv.py`, `app/tools/github.py`) as live responses, so
 mock and real output are structurally identical.
