@@ -28,7 +28,7 @@ export default function Home() {
             Workspace
           </a>
           <a href="#workflow">How it works</a>
-          <span className={styles.phaseBadge}>Foundation · Phase 2</span>
+          <span className={styles.phaseBadge}>Hackathon Preview</span>
         </nav>
       </header>
 
@@ -56,7 +56,11 @@ export default function Home() {
           </div>
         </div>
 
-        <aside className={styles.workflowCard} id="workflow" aria-label="Product workflow">
+        <aside
+          className={styles.workflowCard}
+          id="workflow"
+          aria-label="Product workflow"
+        >
           <div className={styles.cardHeader}>
             <span>Intelligence workflow</span>
             <span className={styles.liveDot}>Ready</span>
@@ -92,7 +96,11 @@ export default function Home() {
         ))}
       </section>
 
-      <section className={styles.missions} id="missions" aria-labelledby="recent-missions-title">
+      <section
+        className={styles.missions}
+        id="missions"
+        aria-labelledby="recent-missions-title"
+      >
         <div className={styles.sectionHeading}>
           <div>
             <p className={styles.sectionLabel}>Workspace</p>
