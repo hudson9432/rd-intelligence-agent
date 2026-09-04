@@ -28,7 +28,7 @@ export default function Home() {
             Workspace
           </a>
           <a href="#workflow">How it works</a>
-          <span className={styles.phaseBadge}>Foundation · Phase 1</span>
+          <span className={styles.phaseBadge}>Foundation · Phase 2</span>
         </nav>
       </header>
 
@@ -45,12 +45,14 @@ export default function Home() {
               className={styles.primaryButton}
               type="button"
               disabled
-              title="Mission creation will be enabled when the mission API is available."
+              title="Mission creation will be enabled in the frontend workflow phase."
             >
               <span aria-hidden="true">＋</span>
               New Research Mission
             </button>
-            <span className={styles.buttonNote}>Available in phase 2</span>
+            <span className={styles.buttonNote}>
+              Mission API ready · dashboard integration is planned.
+            </span>
           </div>
         </div>
 
