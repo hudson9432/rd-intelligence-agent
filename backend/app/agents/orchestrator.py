@@ -67,10 +67,14 @@ class SearchStage(Protocol):
 
 
 class EvidenceStage(Protocol):
-    """Phase 06. Turns sources into persisted, provenance-checked evidence."""
+    """Phase 06. Turns sources into persisted, provenance-checked evidence.
+
+    Takes the goal because relevance is scored relative to it; an extractor
+    that does not know what the mission is deciding cannot rate a source.
+    """
 
     def extract(
-        self, *, mission_id: UUID, sources: Sequence[SourceResult]
+        self, *, mission_id: UUID, goal: str, sources: Sequence[SourceResult]
     ) -> Sequence[EvidenceCard]: ...
 
 
@@ -317,7 +321,9 @@ class WorkflowOrchestrator:
         try:
             extracted = list(
                 self.stages.evidence.extract(
-                    mission_id=state.mission_id, sources=state.sources
+                    mission_id=state.mission_id,
+                    goal=state.goal,
+                    sources=state.sources,
                 )
             )
         except WorkflowStageError as error:

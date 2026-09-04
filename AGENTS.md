@@ -40,13 +40,15 @@ Phases 1–2 (repository foundation and persistence) are complete:
   `AgentEvent` transitions, mission status handling, and
   `POST /missions/{id}/run`. Routing and the iteration limit remain in
   deterministic Python; LangGraph provides the runtime.
-- The workflow's Analysis stage runs the real Analyst, Critic, and Phase C
-  viability gate through `LLMAnalysisAdapter`. Search, Evidence, Decision, and
-  Action remain placeholders that return empty results, so a default run
-  reaches the real gate with no evidence and reports `no_viable_direction`
-  rather than a simulated success.
-- Next.js App Router dashboard shell with an intentionally disabled mission
-  action.
+- The workflow's Search, Evidence, and Analysis stages are real: a mission
+  runs from goal to retrieved sources, to persisted evidence, to a Phase C
+  handoff, to a decision, entirely offline. Decision is provisional and Action
+  is still a placeholder, so a run stops short of a PoC task plan and reports
+  `action_plan_skipped` rather than inventing one.
+- Next.js App Router dashboard that lists and creates missions against the
+  mission API from a client component, with loading, timeout, and error
+  states, covered by Vitest tests in CI. Evidence, decision, and action views
+  are not built.
 - Tests, pinned direct dependencies, and offline-compatible frontend build.
 
 Phase 3 research-source tools are implemented:

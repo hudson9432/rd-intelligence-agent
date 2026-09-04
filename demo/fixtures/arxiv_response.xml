@@ -1,35 +1,171 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <title type="text">ArXiv Query Fixture</title>
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/RVtZp4fZVgN3cRpCP+/YGov6xgQ</id>
+  <title>arXiv Query: search_query=all:retrieval OR all:augmented OR all:generation OR all:limitations OR all:evaluation&amp;id_list=&amp;start=0&amp;max_results=6</title>
+  <updated>2026-09-04T09:14:20Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=all:retrieval+OR+(all:augmented+OR+(all:generation+OR+(all:limitations+OR+all:evaluation)))&amp;start=0&amp;max_results=6&amp;id_list=" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>6</opensearch:itemsPerPage>
+  <opensearch:totalResults>1428297</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
   <entry>
-    <id>http://arxiv.org/abs/1706.03762v7</id>
-    <title>Attention Is All You Need</title>
-    <summary>
-      We propose a new simple network architecture, the Transformer, based
-      solely on attention mechanisms, dispensing with recurrence and
-      convolutions entirely.
-    </summary>
-    <published>2017-06-12T17:57:34Z</published>
-    <author><name>Ashish Vaswani</name></author>
-    <author><name>Noam Shazeer</name></author>
-    <author><name>Niki Parmar</name></author>
-    <author><name>Jakob Uszkoreit</name></author>
-    <author><name>Llion Jones</name></author>
-    <author><name>Aidan N. Gomez</name></author>
-    <author><name>Lukasz Kaiser</name></author>
-    <author><name>Illia Polosukhin</name></author>
+    <id>http://arxiv.org/abs/2506.06962v3</id>
+    <title>AR-RAG: Autoregressive Retrieval Augmentation for Image Generation</title>
+    <updated>2025-06-14T00:40:34Z</updated>
+    <link href="https://arxiv.org/abs/2506.06962v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2506.06962v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We introduce Autoregressive Retrieval Augmentation (AR-RAG), a novel paradigm that enhances image generation by autoregressively incorporating knearest neighbor retrievals at the patch level. Unlike prior methods that perform a single, static retrieval before generation and condition the entire generation on fixed reference images, AR-RAG performs context-aware retrievals at each generation step, using prior-generated patches as queries to retrieve and incorporate the most relevant patch-level visual references, enabling the model to respond to evolving generation needs while avoiding limitations (e.g., over-copying, stylistic bias, etc.) prevalent in existing methods. To realize AR-RAG, we propose two parallel frameworks: (1) Distribution-Augmentation in Decoding (DAiD), a training-free plug-and-use decoding strategy that directly merges the distribution of model-predicted patches with the distribution of retrieved patches, and (2) Feature-Augmentation in Decoding (FAiD), a parameter-efficient fine-tuning method that progressively smooths the features of retrieved patches via multi-scale convolution operations and leverages them to augment the image generation process. We validate the effectiveness of AR-RAG on widely adopted benchmarks, including Midjourney-30K, GenEval and DPG-Bench, demonstrating significant performance gains over state-of-the-art image generation models.</summary>
+    <category term="cs.CV" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-06-08T01:33:05Z</published>
+    <arxiv:comment>Image Generation, Retrieval Augmented Generation</arxiv:comment>
+    <arxiv:primary_category term="cs.CV"/>
+    <author>
+      <name>Jingyuan Qi</name>
+    </author>
+    <author>
+      <name>Zhiyang Xu</name>
+    </author>
+    <author>
+      <name>Qifan Wang</name>
+    </author>
+    <author>
+      <name>Lifu Huang</name>
+    </author>
   </entry>
   <entry>
-    <id>http://arxiv.org/abs/2005.14165v4</id>
-    <title>Language Models are Few-Shot Learners</title>
-    <summary>
-      Here we show that scaling up language models greatly improves
-      task-agnostic, few-shot performance, sometimes even reaching
-      competitiveness with prior state-of-the-art fine-tuning approaches.
-    </summary>
-    <published>2020-05-28T17:29:03Z</published>
-    <author><name>Tom B. Brown</name></author>
-    <author><name>Benjamin Mann</name></author>
-    <author><name>Nick Ryder</name></author>
+    <id>http://arxiv.org/abs/2309.15217v2</id>
+    <title>Ragas: Automated Evaluation of Retrieval Augmented Generation</title>
+    <updated>2025-04-28T05:09:12Z</updated>
+    <link href="https://arxiv.org/abs/2309.15217v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2309.15217v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>We introduce Ragas (Retrieval Augmented Generation Assessment), a framework for reference-free evaluation of Retrieval Augmented Generation (RAG) pipelines. RAG systems are composed of a retrieval and an LLM based generation module, and provide LLMs with knowledge from a reference textual database, which enables them to act as a natural language layer between a user and textual databases, reducing the risk of hallucinations. Evaluating RAG architectures is, however, challenging because there are several dimensions to consider: the ability of the retrieval system to identify relevant and focused context passages, the ability of the LLM to exploit such passages in a faithful way, or the quality of the generation itself. With Ragas, we put forward a suite of metrics which can be used to evaluate these different dimensions \textit{without having to rely on ground truth human annotations}. We posit that such a framework can crucially contribute to faster evaluation cycles of RAG architectures, which is especially important given the fast adoption of LLMs.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-09-26T19:23:54Z</published>
+    <arxiv:comment>Reference-free (not tied to having ground truth available) evaluation framework for retrieval agumented generation</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Shahul Es</name>
+    </author>
+    <author>
+      <name>Jithin James</name>
+    </author>
+    <author>
+      <name>Luis Espinosa-Anke</name>
+    </author>
+    <author>
+      <name>Steven Schockaert</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2504.13684v1</id>
+    <title>Intelligent Interaction Strategies for Context-Aware Cognitive Augmentation</title>
+    <updated>2025-04-18T13:35:21Z</updated>
+    <link href="https://arxiv.org/abs/2504.13684v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2504.13684v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Human cognition is constrained by processing limitations, leading to cognitive overload and inefficiencies in knowledge synthesis and decision-making. Large Language Models (LLMs) present an opportunity for cognitive augmentation, but their current reactive nature limits their real-world applicability. This position paper explores the potential of context-aware cognitive augmentation, where LLMs dynamically adapt to users' cognitive states and task environments to provide appropriate support. Through a think-aloud study in an exhibition setting, we examine how individuals interact with multi-modal information and identify key cognitive challenges in structuring, retrieving, and applying knowledge. Our findings highlight the need for AI-driven cognitive support systems that integrate real-time contextual awareness, personalized reasoning assistance, and socially adaptive interactions. We propose a framework for AI augmentation that seamlessly transitions between real-time cognitive support and post-experience knowledge organization, contributing to the design of more effective human-centered AI systems.</summary>
+    <category term="cs.HC" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-04-18T13:35:21Z</published>
+    <arxiv:comment>Presented at the 2025 ACM Workshop on Human-AI Interaction for Augmented Reasoning, Report Number: CHI25-WS-AUGMENTED-REASONING</arxiv:comment>
+    <arxiv:primary_category term="cs.HC"/>
+    <arxiv:journal_ref>Proceedings of the 2025 ACM CHI Workshop on Human-AI Interaction for Augmented Reasoning</arxiv:journal_ref>
+    <author>
+      <name> Xiangrong</name>
+      <arxiv:affiliation>Daniel</arxiv:affiliation>
+    </author>
+    <author>
+      <name> Zhu</name>
+    </author>
+    <author>
+      <name>Yuan Xu</name>
+    </author>
+    <author>
+      <name>Tianjian Liu</name>
+    </author>
+    <author>
+      <name>Jingwei Sun</name>
+    </author>
+    <author>
+      <name>Yu Zhang</name>
+    </author>
+    <author>
+      <name>Xin Tong</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2504.17204v1</id>
+    <title>Factually: Exploring Wearable Fact-Checking for Augmented Truth Discernment</title>
+    <updated>2025-04-24T02:29:50Z</updated>
+    <link href="https://arxiv.org/abs/2504.17204v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2504.17204v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Wearable devices are transforming human capabilities by seamlessly augmenting cognitive functions. In this position paper, we propose a voice-based, interactive learning companion designed to amplify and extend cognitive abilities through informal learning. Our vision is threefold: (1) to enable users to discover new knowledge on-the-go through contextual interactive quizzes, fostering critical thinking and mindfulness, (2) to proactively detect misinformation, empowering users to critically assess information in real time, and (3) to provide spoken language correction and prompting hints for second language learning and effective communication. As an initial step toward this vision, we present Factually - a proactive, wearable fact-checking system integrated into devices like smartwatches or rings. Factually discreetly alerts users to potential falsehoods via vibrotactile feedback, helping them assess information critically. We demonstrate its utility through three illustrative scenarios, highlighting its potential to extend cognitive abilities for real-time misinformation detection. Early qualitative feedback suggests that Factually can enhance users' fact-checking capabilities, offering both practical and experiential benefits.</summary>
+    <category term="cs.HC" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.ET" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-04-24T02:29:50Z</published>
+    <arxiv:comment>Presented at the 2025 ACM Workshop on Human-AI Interaction for Augmented Reasoning, Report Number: CHI25-WS-AUGMENTED-REASONING</arxiv:comment>
+    <arxiv:primary_category term="cs.HC"/>
+    <arxiv:journal_ref>Proceedings of the 2025 ACM CHI Workshop on Human-AI Interaction for Augmented Reasoning</arxiv:journal_ref>
+    <author>
+      <name>Chitralekha Gupta</name>
+    </author>
+    <author>
+      <name>Hanjun Wu</name>
+    </author>
+    <author>
+      <name>Praveen Sasikumar</name>
+    </author>
+    <author>
+      <name>Shreyas Sridhar</name>
+    </author>
+    <author>
+      <name>Priambudi Bagaskara</name>
+    </author>
+    <author>
+      <name>Suranga Nanayakkara</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2411.18583v1</id>
+    <title>Automated Literature Review Using NLP Techniques and LLM-Based Retrieval-Augmented Generation</title>
+    <updated>2024-11-27T18:27:07Z</updated>
+    <link href="https://arxiv.org/abs/2411.18583v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2411.18583v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>This research presents and compares multiple approaches to automate the generation of literature reviews using several Natural Language Processing (NLP) techniques and retrieval-augmented generation (RAG) with a Large Language Model (LLM). The ever-increasing number of research articles provides a huge challenge for manual literature review. It has resulted in an increased demand for automation. Developing a system capable of automatically generating the literature reviews from only the PDF files as input is the primary objective of this research work. The effectiveness of several Natural Language Processing (NLP) strategies, such as the frequency-based method (spaCy), the transformer model (Simple T5), and retrieval-augmented generation (RAG) with Large Language Model (GPT-3.5-turbo), is evaluated to meet the primary objective. The SciTLDR dataset is chosen for this research experiment and three distinct techniques are utilized to implement three different systems for auto-generating the literature reviews. The ROUGE scores are used for the evaluation of all three systems. Based on the evaluation, the Large Language Model GPT-3.5-turbo achieved the highest ROUGE-1 score, 0.364. The transformer model comes in second place and spaCy is at the last position. Finally, a graphical user interface is created for the best system based on the large language model.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2024-11-27T18:27:07Z</published>
+    <arxiv:comment>Key Words : T5, SpaCy, Large Language Model, GPT, ROUGE, Literature Review, Natural Language Processing, Retrieval-augmented generation</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Nurshat Fateh Ali</name>
+    </author>
+    <author>
+      <name>Md. Mahdi Mohtasim</name>
+    </author>
+    <author>
+      <name>Shakil Mosharrof</name>
+    </author>
+    <author>
+      <name>T. Gopi Krishna</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2504.14689v1</id>
+    <title>Designing AI Systems that Augment Human Performed vs. Demonstrated Critical Thinking</title>
+    <updated>2025-04-20T17:40:28Z</updated>
+    <link href="https://arxiv.org/abs/2504.14689v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2504.14689v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The recent rapid advancement of LLM-based AI systems has accelerated our search and production of information. While the advantages brought by these systems seemingly improve the performance or efficiency of human activities, they do not necessarily enhance human capabilities. Recent research has started to examine the impact of generative AI on individuals' cognitive abilities, especially critical thinking. Based on definitions of critical thinking across psychology and education, this position paper proposes the distinction between demonstrated and performed critical thinking in the era of generative AI and discusses the implication of this distinction in research and development of AI systems that aim to augment human critical thinking.</summary>
+    <category term="cs.HC" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-04-20T17:40:28Z</published>
+    <arxiv:comment>Presented at the 2025 ACM Workshop on Human-AI Interaction for Augmented Reasoning,</arxiv:comment>
+    <arxiv:primary_category term="cs.HC"/>
+    <arxiv:journal_ref>Proceedings of the 2025 ACM CHI Workshop on Human-AI Interaction for Augmented Reasoning</arxiv:journal_ref>
+    <author>
+      <name>Katelyn Xiaoying Mei</name>
+    </author>
+    <author>
+      <name>Nic Weber</name>
+    </author>
   </entry>
 </feed>

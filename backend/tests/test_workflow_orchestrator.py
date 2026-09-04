@@ -104,9 +104,9 @@ class ScriptedEvidence:
         self.call_count = 0
 
     def extract(
-        self, *, mission_id: UUID, sources: Sequence[SourceResult]
+        self, *, mission_id: UUID, goal: str, sources: Sequence[SourceResult]
     ) -> Sequence[EvidenceCard]:
-        del mission_id, sources
+        del mission_id, goal, sources
         index = self.call_count
         self.call_count += 1
         return self.batches[index] if index < len(self.batches) else []

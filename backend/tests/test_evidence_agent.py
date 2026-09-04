@@ -152,7 +152,9 @@ def test_mock_relevance_tracks_the_goal_rather_than_being_constant() -> None:
         content="Recovery loops for computer-use agents that retry failed GUI actions."
     )
     off_topic = _source(
-        content="Medieval crop rotation practices recorded in manorial ledgers."
+        title="Three-field rotation in twelfth-century manorial ledgers",
+        summary="A survey of medieval agricultural record keeping.",
+        content="Medieval crop rotation practices recorded in manorial ledgers.",
     )
 
     relevant = agent.extract(
@@ -163,6 +165,7 @@ def test_mock_relevance_tracks_the_goal_rather_than_being_constant() -> None:
     )
 
     assert relevant.relevance_score > unrelated.relevance_score
+    # Nothing in an off-topic title or body matches the goal's content words.
     assert unrelated.relevance_score == 0
 
 

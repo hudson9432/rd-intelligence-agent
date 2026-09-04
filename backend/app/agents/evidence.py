@@ -39,7 +39,7 @@ _MAX_LIMITATION_CHARS = 300
 _SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+")
 
 
-def _stated_limitation(source_text: str) -> str | None:
+def stated_limitation(source_text: str) -> str | None:
     """Return the first sentence of the source that states a limitation.
 
     Extraction, never invention: the returned text is a verbatim span of the
@@ -157,15 +157,21 @@ class EvidenceAgent:
         source_text = source.content or source.summary or source.title
         snippets = [source_text[:200]] if source_text else []
 
-        limitation = _stated_limitation(source_text) if source_text else None
+        limitation = stated_limitation(source_text) if source_text else None
         if limitation is not None and limitation not in snippets:
             # Keep the quote in the snippet list so provenance stays checkable.
             snippets.append(limitation)
 
+        # Score against the title as well as the body. A title states the
+        # subject in the fewest words a source ever uses, so ignoring it makes
+        # a plainly on-topic paper score zero whenever its abstract happens to
+        # phrase things differently.
+        scored_text = " ".join(part for part in (source.title, source_text) if part)
+
         return EvidenceExtraction(
             limitation=limitation,
             evidence_snippets=snippets,
-            relevance_score=goal_overlap(mission_goal, source_text or ""),
+            relevance_score=goal_overlap(mission_goal, scored_text),
             extraction_confidence=1,
         )
 
