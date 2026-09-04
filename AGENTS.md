@@ -33,6 +33,11 @@ Phases 1–2 (repository foundation and persistence) are complete:
   an OpenAI-compatible implementation with bounded retries.
 - A standalone Evidence extraction component with Pydantic validation and
   exact source-snippet provenance checks.
+- A deterministic workflow orchestrator with a bounded re-search loop,
+  persisted `AgentEvent` transitions, mission status handling, and
+  `POST /missions/{id}/run`. Its five stages are placeholders that return
+  empty results, so a run reports `no_viable_direction` rather than a
+  simulated success.
 - Next.js App Router dashboard shell with an intentionally disabled mission
   action.
 - Tests, pinned direct dependencies, and offline-compatible frontend build.

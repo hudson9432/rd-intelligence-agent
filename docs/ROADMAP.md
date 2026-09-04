@@ -12,7 +12,7 @@ Status values: `complete`, `in progress`, `next`, `planned`, `optional`.
 | 06 | in progress | Evidence Agent with strict provenance |
 | 07 | planned | Analyst Agent and deterministic opportunity scoring |
 | 08 | planned | Critic Agent, coverage scoring, targeted query output |
-| 09 | planned | LangGraph orchestrator and bounded re-search routing |
+| 09 | in progress | LangGraph orchestrator and bounded re-search routing |
 | 10 | planned | Decision Engine |
 | 11 | planned | Action Agent and PoC task plan |
 | 12 | optional | User-approved calendar proposal/execution integration |
@@ -29,3 +29,15 @@ backend tests plus frontend lint/build.
 Phases 04 and 06 have foundational components landing early to unblock parallel
 work. They remain in progress until structured generation/mock fixtures and the
 full deduplicate-filter-persist-event Evidence pipeline are complete.
+
+Phase 09 has landed as a graph skeleton: routing, the bounded re-search loop,
+event persistence, and mission status are implemented and tested, while the
+five stages it drives are placeholders. It remains in progress until real
+stages replace them.
+
+That skeleton is plain typed Python rather than LangGraph. `AGENTS.md` requires
+that routing and iteration limits stay in deterministic code and that no
+framework is added while a small local abstraction is enough for the MVP. The
+node and router boundaries are shaped so a LangGraph runtime can wrap them
+without changing stage implementations; adopt the dependency when concurrent
+fan-out, checkpointing, or streaming resumption is actually needed.

@@ -22,6 +22,7 @@ agent workflow remain forthcoming.
 | FastAPI health API and initial schemas | Complete |
 | Next.js dashboard shell | Complete |
 | SQLite persistence and mission APIs | Complete |
+| Workflow orchestrator skeleton (`POST /missions/{id}/run`) | In progress |
 | LLM provider and Evidence extraction foundations | In progress |
 | Research tools and end-to-end agent workflow | Planned |
 | Deterministic offline demo | Planned |
@@ -148,10 +149,28 @@ the populated `.env` file or API keys.
 | `MOCK_EXTERNAL_APIS` | Future deterministic source mode | `true` |
 | `DEMO_MODE` | Future offline end-to-end demo mode | `false` |
 
+## Running a mission workflow
+
+`POST /missions/{mission_id}/run` executes the mission graph and records every
+stage transition as an `AgentEvent`:
+
+```bash
+curl -X POST http://localhost:8000/missions/{mission_id}/run
+curl http://localhost:8000/missions/{mission_id}/events
+```
+
+The graph, its bounded re-search loop, and its event stream are real. The five
+stages behind it are not: each unimplemented phase returns an empty result
+rather than invented data, so a run today truthfully ends at
+`no_viable_direction` with no PoC candidate. Replace a stage as its phase
+lands; see `backend/app/agents/pending_stages.py`.
+
 ## Current placeholders
 
-- `backend/app/agents`: Orchestrator, Search, Analyst, Critic, and Action agents;
-  Evidence extraction exists but is not yet wired to persistence and events.
+- `backend/app/agents/pending_stages.py`: the Search, Evidence, Decision, and
+  Action workflow stages. The orchestrator graph that routes between them is
+  implemented; the stages it calls are not.
+- Evidence extraction exists but is not yet wired to persistence and events.
 - `backend/app/tools`: deterministic external research-source tools.
 - Most `backend/app/services` modules beyond the mission service.
 - Prompts beyond the initial Evidence extraction prompt.
