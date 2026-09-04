@@ -8,6 +8,7 @@ from uuid import UUID
 
 from app.schemas.analysis import (
     AnalystOutcome,
+    ClaimReview,
     CriticOutcome,
     CritiqueQuestionDraft,
     EvaluatedCritiqueQuestion,
@@ -47,6 +48,18 @@ class QuestionReviewer(Protocol):
         direction: RankedDirection,
         evidence: Sequence[EvidenceCard],
     ) -> SemanticQuestionScores: ...
+
+
+class ClaimReviewer(Protocol):
+    """Independent pro/con review boundary consumed by the Phase C gate."""
+
+    def review_claims(
+        self,
+        *,
+        analysis: AnalystOutcome,
+        critique: CriticOutcome,
+        evidence: Sequence[EvidenceCard],
+    ) -> Sequence[ClaimReview]: ...
 
 
 class CriticAgent:
