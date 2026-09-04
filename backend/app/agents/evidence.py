@@ -39,7 +39,7 @@ _MAX_LIMITATION_CHARS = 300
 _SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+")
 
 
-def _stated_limitation(source_text: str) -> str | None:
+def stated_limitation(source_text: str) -> str | None:
     """Return the first sentence of the source that states a limitation.
 
     Extraction, never invention: the returned text is a verbatim span of the
@@ -157,7 +157,7 @@ class EvidenceAgent:
         source_text = source.content or source.summary or source.title
         snippets = [source_text[:200]] if source_text else []
 
-        limitation = _stated_limitation(source_text) if source_text else None
+        limitation = stated_limitation(source_text) if source_text else None
         if limitation is not None and limitation not in snippets:
             # Keep the quote in the snippet list so provenance stays checkable.
             snippets.append(limitation)

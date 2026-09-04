@@ -170,8 +170,22 @@ class LLMAnalysisAdapter:
 
 
 def _mock_directions(evidence: Sequence[EvidenceCard]) -> list[DirectionDraft]:
-    directions: list[DirectionDraft] = []
-    for card in sorted(evidence, key=lambda item: str(item.id)):
+    """Derive one direction per evidence card, deterministically.
+
+    Ordering and identifiers come from evidence *content*, never from
+    `EvidenceCard.id`. Those ids are assigned by persistence and differ on
+    every run, so keying on them made the mock non-deterministic: the Analyst
+    breaks coverage ties on direction title and id, so which directions became
+    active — and therefore whether the run reached a PoC candidate — varied
+    between identical runs. Invariant 7 requires demo and test modes to be
+    deterministic.
+
+    Evidence ids are still cited verbatim in the claims; provenance is
+    unaffected.
+    """
+
+    drafted: list[tuple[str, str, EvidenceCard]] = []
+    for card in evidence:
         statement = next(
             (
                 value
@@ -197,16 +211,25 @@ def _mock_directions(evidence: Sequence[EvidenceCard]) -> list[DirectionDraft]:
                 )
                 if value
             ),
-            f"Evidence {str(card.id)[:8]}",
+            statement,
         )
+        drafted.append((statement, title[:300], card))
+
+    drafted.sort(key=lambda item: (item[1].casefold(), item[0]))
+
+    directions: list[DirectionDraft] = []
+    for position, (statement, title, card) in enumerate(drafted):
+        # The position keeps ids unique when two cards state the same thing,
+        # and the sort above makes the position itself content-determined.
+        key = _stable_id("", str(position), title, statement)
         directions.append(
             DirectionDraft(
-                id=f"direction-{card.id.hex[:12]}",
-                title=title[:300],
+                id=f"direction{key}",
+                title=title,
                 summary=statement,
                 claims=[
                     DirectionClaim(
-                        id=f"claim-{card.id.hex[:12]}",
+                        id=f"claim{key}",
                         statement=statement,
                         evidence_ids=[card.id],
                     )

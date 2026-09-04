@@ -54,8 +54,14 @@ is enforced inside the analysis node, and LangGraph's `recursion_limit` is only
 a backstop against a routing bug. Nodes sequence work and emit events; no
 scoring, parsing, or business rule lives in one.
 
-Phase 14 has a hard prerequisite: the fixtures in `demo/fixtures/` are
-one-sentence blurbs with no stated limitations, and offline extraction quotes a
-limitation only when the source states one. Without richer fixtures the demo
-stops at `research_required` however well the agents work. Capture them from
-the live APIs; do not hand-write abstracts for real papers.
+Phase 14's fixture prerequisite is met. `demo/capture_fixtures.py` captures
+real arXiv and GitHub responses, and the committed set now reaches
+`ready_for_poc` deterministically offline, guarded by
+`backend/tests/test_demo_fixtures.py`. Refresh fixtures with that script; do
+not hand-write abstracts for real papers.
+
+What phase 14 still needs is a query-aware mock: replay ignores the query, so a
+targeted re-search round returns the same sources it already has and the
+bounded loop cannot improve its evidence offline. Until per-query fixture sets
+exist, the Critic-driven re-search loop — the product's stated differentiator —
+is not observable in mock mode.

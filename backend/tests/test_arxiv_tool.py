@@ -15,16 +15,29 @@ FIXTURE = (
 
 
 def test_parse_feed_maps_entries_without_fabricating_fields() -> None:
+    """Assert on structure, not on which papers were captured.
+
+    The fixture is refreshed by `demo/capture_fixtures.py`, so pinning titles
+    here would make every refresh a test failure. Checking that each mapped
+    value occurs verbatim in the feed is also a stronger anti-fabrication
+    assertion than comparing against a remembered string.
+    """
+
     results = parse_feed(FIXTURE)
 
-    assert len(results) == 2
-    first = results[0]
-    assert first.source_type is SourceType.ARXIV
-    assert first.title == "Attention Is All You Need"
-    assert first.url == "http://arxiv.org/abs/1706.03762v7"
-    assert "Ashish Vaswani" in first.authors
-    assert first.published_at is not None
-    assert first.summary
+    assert results, "the committed fixture must contain parseable entries"
+    for result in results:
+        assert result.source_type is SourceType.ARXIV
+        assert result.title
+        assert result.title in " ".join(FIXTURE.split())
+        assert result.url.startswith("http")
+        assert result.url in FIXTURE
+        for author in result.authors:
+            assert author in FIXTURE
+
+    assert any(result.authors for result in results)
+    assert any(result.published_at is not None for result in results)
+    assert any(result.summary for result in results)
 
 
 def test_parse_feed_skips_entries_missing_required_fields() -> None:
