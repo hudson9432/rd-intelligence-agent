@@ -33,6 +33,12 @@ Phases 1–2 (repository foundation and persistence) are complete:
   an OpenAI-compatible implementation with bounded retries.
 - A standalone Evidence extraction component with Pydantic validation and
   exact source-snippet provenance checks.
+- A LangGraph workflow orchestrator with a bounded re-search loop, persisted
+  `AgentEvent` transitions, mission status handling, and
+  `POST /missions/{id}/run`. Routing and the iteration limit remain in
+  deterministic Python; LangGraph provides the runtime. Its five stages are
+  placeholders that return empty results, so a run reports
+  `no_viable_direction` rather than a simulated success.
 - Next.js App Router dashboard that lists missions and creates them through a
   Server Action, degrading to an explicit unavailable state when the API cannot
   be reached. Evidence, decision, and action views are not built.
@@ -115,7 +121,8 @@ generate or classify content but must not silently own business rules.
 - Keep prompts in `backend/app/prompts/`; do not embed large prompts in agents.
 - Reuse repository/service interfaces rather than accessing SQLite from agents.
 - Do not add a framework or hosted service when a small local abstraction is
-  enough for the MVP.
+  enough for the MVP. LangGraph is the one accepted exception, for the workflow
+  runtime only; see `docs/ROADMAP.md`.
 - Never commit `.env`, local databases, caches, `.venv`, or `node_modules`.
 
 ## Development commands

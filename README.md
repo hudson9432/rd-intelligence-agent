@@ -24,6 +24,7 @@ the end-to-end agent workflow remains forthcoming.
 | Frontend mission list and creation wired to the mission API | Complete |
 | SQLite persistence and mission APIs | Complete |
 | arXiv/GitHub research source tools (`POST /research/search`) | Complete |
+| Workflow orchestrator (`POST /missions/{id}/run`) | In progress |
 | LLM provider and Evidence extraction foundations | In progress |
 | End-to-end agent workflow | Planned |
 | Deterministic offline demo | Planned |
@@ -178,10 +179,30 @@ With `MOCK_EXTERNAL_APIS=true` (the default), it replays the fixed responses in
 `demo/fixtures/` through the same parsers as the live path, so mock and real
 output are structurally identical.
 
+## Running a mission workflow
+
+`POST /missions/{mission_id}/run` executes the mission graph and records every
+stage transition as an `AgentEvent`:
+
+```bash
+curl -X POST http://localhost:8000/missions/{mission_id}/run
+curl http://localhost:8000/missions/{mission_id}/events
+```
+
+The graph runs on LangGraph; routing and the re-search bound stay in
+deterministic Python, with LangGraph's step limit only as a backstop. The
+graph, its loop, and its event stream are real. The stages behind it are not
+all built: an unimplemented phase returns an empty
+result rather than invented data, so a run with the default stage set
+truthfully ends at `no_viable_direction`. Replace a stage as its phase lands;
+see `backend/app/agents/pending_stages.py`.
+
 ## Current placeholders
 
-- `backend/app/agents`: Orchestrator, Search, Analyst, Critic, and Action agents;
-  Evidence extraction exists but is not yet wired to persistence and events.
+- `backend/app/agents/pending_stages.py`: the Search, Evidence, Decision, and
+  Action workflow stages. The orchestrator graph that routes between them is
+  implemented; those stages are not.
+- Evidence extraction exists but is not yet wired to persistence and events.
 - Most `backend/app/services` modules beyond mission and research-source services.
 - Prompts beyond the initial Evidence extraction prompt.
 - `demo`: research-source fixtures exist; the complete offline scenario remains
@@ -217,9 +238,9 @@ used to assist with scaffolding, implementation, tests, documentation, and
 repository operations. All changes remain visible in Git history.
 
 Current third-party foundations include Python, FastAPI, Pydantic, SQLAlchemy,
-SQLite, Next.js, React, TypeScript, arXiv, GitHub, and their locked package
-dependencies. Live model providers, datasets, generated media, and sponsor
-tools must be added to this disclosure when introduced.
+SQLite, LangGraph, Next.js, React, TypeScript, arXiv, GitHub, and their locked
+package dependencies. Live model providers, datasets, generated media, and
+sponsor tools must be added to this disclosure when introduced.
 
 ## License
 

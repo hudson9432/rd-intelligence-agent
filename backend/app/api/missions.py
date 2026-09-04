@@ -4,7 +4,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.dependencies import MissionServiceDependency
+from app.api.dependencies import (
+    MissionServiceDependency,
+    WorkflowServiceDependency,
+)
 from app.models.agent_event import AgentEvent as AgentEventModel
 from app.models.research_mission import ResearchMission as ResearchMissionModel
 from app.schemas.agent_event import AgentEvent
@@ -13,7 +16,9 @@ from app.schemas.research_mission import (
     ResearchMissionDetail,
     ResearchMissionSummary,
 )
+from app.schemas.workflow import WorkflowRunResult
 from app.services.mission import MissionNotFoundError
+from app.services.workflow import WorkflowAlreadyRunningError
 
 router = APIRouter(prefix="/missions", tags=["missions"])
 
@@ -65,3 +70,26 @@ def list_mission_events(
         return service.list_events(mission_id)
     except MissionNotFoundError as error:
         raise _not_found(error) from error
+
+
+@router.post("/{mission_id}/run", response_model=WorkflowRunResult)
+def run_mission_workflow(
+    mission_id: UUID,
+    service: WorkflowServiceDependency,
+) -> WorkflowRunResult:
+    """Run the mission workflow to a terminal state.
+
+    The run is synchronous: stages are placeholders today, so it returns
+    immediately. Moving to a background runner is required before any stage
+    performs real network or LLM work.
+    """
+
+    try:
+        return service.run(mission_id)
+    except MissionNotFoundError as error:
+        raise _not_found(error) from error
+    except WorkflowAlreadyRunningError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "workflow_already_running", "message": str(error)},
+        ) from error
