@@ -8,10 +8,11 @@ The intended product loop is:
 
 > Research → Evidence → Evaluate → Decide → Act
 
-This repository currently contains the **phase 1–2 foundation**: a FastAPI
-backend, SQLite persistence and mission APIs, plus a Next.js dashboard shell.
-External research providers, LLM calls, agents, and the workflow are
-placeholders for later phases.
+This repository contains the **phase 1–2 foundation**: a FastAPI backend,
+SQLite persistence and mission APIs, plus a Next.js dashboard shell. It also
+includes early provider-independent LLM and provenance-safe Evidence extraction
+components for parallel development. Research providers and the end-to-end
+agent workflow remain forthcoming.
 
 ## Project status
 
@@ -21,7 +22,8 @@ placeholders for later phases.
 | FastAPI health API and initial schemas | Complete |
 | Next.js dashboard shell | Complete |
 | SQLite persistence and mission APIs | Complete |
-| Research tools, LLM providers, and agents | Planned |
+| LLM provider and Evidence extraction foundations | In progress |
+| Research tools and end-to-end agent workflow | Planned |
 | Deterministic offline demo | Planned |
 
 See [the implementation roadmap](docs/ROADMAP.md) for the ordered delivery
@@ -34,11 +36,11 @@ phases and [the architecture guide](docs/ARCHITECTURE.md) for system boundaries.
 ├── backend/
 │   ├── app/
 │   │   ├── api/          # HTTP routes
-│   │   ├── agents/       # Placeholder: agent implementations
+│   │   ├── agents/       # Separately testable agent components
 │   │   ├── core/         # Configuration and logging
 │   │   ├── db/           # SQLite engine and sessions
 │   │   ├── models/       # SQLAlchemy persistence models
-│   │   ├── prompts/      # Placeholder: versioned LLM prompts
+│   │   ├── prompts/      # Versioned LLM prompts
 │   │   ├── schemas/      # Pydantic API/domain schemas
 │   │   ├── repositories/ # Typed persistence operations
 │   │   ├── services/     # Mission application service
@@ -63,7 +65,7 @@ phases and [the architecture guide](docs/ARCHITECTURE.md) for system boundaries.
 - Node.js 20.9 or newer (developed with Node.js 22.14.0)
 - npm 10 or newer
 
-No API key is required for the current phase.
+No API key is required while `MOCK_LLM=true` (the default).
 
 ## Backend setup
 
@@ -139,20 +141,20 @@ the populated `.env` file or API keys.
 | `CORS_ORIGINS` | JSON list of allowed frontend origins | `["http://localhost:3000"]` |
 | `DATABASE_URL` | SQLAlchemy database URL | `sqlite:///./data/rd_intelligence.db` |
 | `DATABASE_ECHO` | Log generated SQL for debugging | `false` |
-| `LLM_BASE_URL` | OpenAI-compatible endpoint placeholder | empty |
-| `LLM_API_KEY` | Secret provider credential placeholder | empty |
-| `LLM_MODEL` | Model name placeholder | empty |
-| `MOCK_LLM` | Future deterministic LLM mode | `true` |
+| `LLM_BASE_URL` | OpenAI-compatible API base URL | empty |
+| `LLM_API_KEY` | Secret provider credential | empty |
+| `LLM_MODEL` | Provider model name | empty |
+| `MOCK_LLM` | Use the deterministic, offline LLM client | `true` |
 | `MOCK_EXTERNAL_APIS` | Future deterministic source mode | `true` |
 | `DEMO_MODE` | Future offline end-to-end demo mode | `false` |
 
 ## Current placeholders
 
-- `backend/app/agents`: Orchestrator, Search, Evidence, Analyst, Critic, and
-  Action agents.
+- `backend/app/agents`: Orchestrator, Search, Analyst, Critic, and Action agents;
+  Evidence extraction exists but is not yet wired to persistence and events.
 - `backend/app/tools`: deterministic external research-source tools.
 - Most `backend/app/services` modules beyond the mission service.
-- `backend/app/prompts`: prompts kept separate from business logic.
+- Prompts beyond the initial Evidence extraction prompt.
 - `docs` and `demo`: architecture notes and deterministic demo fixtures.
 - The dashboard's **New Research Mission** action remains disabled until the
   frontend workflow phase connects it to the implemented mission API.
