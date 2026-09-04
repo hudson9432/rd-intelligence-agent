@@ -47,6 +47,18 @@ def test_get_llm_client_requires_config_when_not_mocked() -> None:
         get_llm_client(settings)
 
 
+def test_get_llm_client_rejects_empty_api_key_when_not_mocked() -> None:
+    settings = Settings(
+        mock_llm=False,
+        llm_base_url="https://example.test/v1",
+        llm_api_key=" ",
+        llm_model="test-model",
+    )
+
+    with pytest.raises(LLMProviderError):
+        get_llm_client(settings)
+
+
 def test_get_llm_client_returns_real_provider_when_configured() -> None:
     settings = Settings(
         mock_llm=False,
@@ -102,6 +114,77 @@ def test_openai_compatible_client_retries_then_succeeds() -> None:
 
     assert completion.content == "ok"
     assert attempts["count"] == 2
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "rate_limit",
+        "timeout",
+    ],
+)
+def test_openai_compatible_client_retries_transient_failures(failure: str) -> None:
+    attempts = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            if failure == "rate_limit":
+                return httpx.Response(429, json={"error": "slow down"})
+            raise httpx.ReadTimeout("timed out", request=request)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+    client = OpenAICompatibleLLMClient(
+        base_url="https://example.test/v1",
+        api_key="sk-test",
+        model="test-model",
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert client.complete(_messages()).content == "ok"
+    assert attempts["count"] == 2
+
+
+def test_openai_compatible_client_retries_malformed_success_response() -> None:
+    attempts = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        attempts["count"] += 1
+        return httpx.Response(200, json={"choices": []})
+
+    client = OpenAICompatibleLLMClient(
+        base_url="https://example.test/v1",
+        api_key="sk-test",
+        model="test-model",
+        transport=httpx.MockTransport(handler),
+    )
+
+    with pytest.raises(LLMProviderError):
+        client.complete(_messages())
+
+    assert attempts["count"] == 3
+
+
+def test_openai_compatible_client_does_not_retry_authentication_error() -> None:
+    attempts = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        attempts["count"] += 1
+        return httpx.Response(401, json={"error": "unauthorized"})
+
+    client = OpenAICompatibleLLMClient(
+        base_url="https://example.test/v1",
+        api_key="sk-test",
+        model="test-model",
+        transport=httpx.MockTransport(handler),
+    )
+
+    with pytest.raises(LLMProviderError, match="rejected"):
+        client.complete(_messages())
+
+    assert attempts["count"] == 1
 
 
 def test_openai_compatible_client_raises_after_exhausting_retries() -> None:

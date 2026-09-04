@@ -1,22 +1,30 @@
-"""Tentative raw search-result contract, ahead of the Research Sources owner.
+"""Normalized result returned by every research-source integration."""
 
-This mirrors ``SourceDocumentCreate`` minus the mission-scoped persistence
-fields, since a search result exists before it is attached to a mission. Treat
-this as provisional until the team freezes the shared contracts; keep field
-names aligned with ``SourceDocumentCreate`` to minimize rework when it lands.
-"""
+from datetime import UTC, datetime
+from typing import Any
 
-from datetime import datetime
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SourceResult(BaseModel):
+    """Provider-neutral source data before mission-scoped persistence."""
+
     source_type: str = Field(min_length=1, max_length=50)
     title: str = Field(min_length=1, max_length=500)
     url: str = Field(min_length=1)
     published_at: datetime | None = None
-    authors_json: list[str] = Field(default_factory=list)
-    raw_summary: str | None = None
+    authors: list[str] = Field(default_factory=list)
+    summary: str | None = None
     content: str | None = None
-    content_hash: str = Field(min_length=64, max_length=64)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("published_at")
+    @classmethod
+    def normalize_published_at(cls, value: datetime | None) -> datetime | None:
+        """Require source timestamps to be unambiguous and normalize them to UTC."""
+
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            raise ValueError("published_at must include a timezone")
+        return value.astimezone(UTC)

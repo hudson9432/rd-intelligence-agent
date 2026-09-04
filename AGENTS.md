@@ -29,13 +29,18 @@ Phases 1–2 (repository foundation and persistence) are complete:
 - SQLite initialization with UTC timestamps, JSON fields, provenance checks,
   and mission/source cascade behavior.
 - Mission create/list/get and event-list APIs.
+- A provider-independent synchronous LLM client, deterministic mock client, and
+  an OpenAI-compatible implementation with bounded retries.
+- A standalone Evidence extraction component with Pydantic validation and
+  exact source-snippet provenance checks.
 - Next.js App Router dashboard shell with an intentionally disabled mission
   action.
 - Tests, pinned direct dependencies, and offline-compatible frontend build.
 
-Source integrations, LLM providers, agents, LangGraph orchestration, and demo
-fixtures are not implemented yet. Do not claim that placeholders are working
-features.
+Source integrations, the complete Evidence persistence/event pipeline, other
+agents, LangGraph orchestration, and demo fixtures are not implemented yet. The
+LLM and Evidence foundations are not wired into a public workflow. Do not claim
+that these partial components are an end-to-end feature.
 
 Check [docs/ROADMAP.md](docs/ROADMAP.md) before starting work and update it only
 when a phase is genuinely complete.

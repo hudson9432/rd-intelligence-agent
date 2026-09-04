@@ -13,6 +13,6 @@ class LLMMessage(BaseModel):
 
 
 class LLMCompletion(BaseModel):
-    content: str
-    model: str
+    content: str = Field(min_length=1)
+    model: str = Field(min_length=1)
     mocked: bool

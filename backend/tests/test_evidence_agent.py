@@ -25,9 +25,8 @@ def _source(**overrides: object) -> SourceResult:
         "source_type": "arxiv",
         "title": "Recovering from failed GUI actions",
         "url": "https://arxiv.org/abs/9999.99999",
-        "raw_summary": "A short summary of the paper.",
+        "summary": "A short summary of the paper.",
         "content": "The paper studies recovery loops for computer-use agents.",
-        "content_hash": "a" * 64,
     }
     defaults.update(overrides)
     return SourceResult(**defaults)
@@ -37,13 +36,16 @@ def test_extract_parses_valid_structured_response() -> None:
     content = (
         '{"problem": "Agents fail silently", "method": "Retry loop", '
         '"benchmark": null, "result": null, "limitation": null, '
-        '"technology_tags": ["recovery"], "evidence_snippets": ["quote"], '
+        '"technology_tags": ["recovery"], '
+        '"evidence_snippets": ["recovery loops"], '
         '"relevance_score": 0.8, "extraction_confidence": 0.9}'
     )
     agent = EvidenceAgent(_StubLLMClient(content))
     mission_id, source_id = uuid4(), uuid4()
 
-    evidence = agent.extract(mission_id=mission_id, source_id=source_id, source=_source())
+    evidence = agent.extract(
+        mission_id=mission_id, source_id=source_id, source=_source()
+    )
 
     assert evidence.mission_id == mission_id
     assert evidence.source_id == source_id
@@ -59,6 +61,32 @@ def test_extract_raises_on_malformed_real_response() -> None:
         agent.extract(mission_id=uuid4(), source_id=uuid4(), source=_source())
 
 
+def test_extract_rejects_quote_absent_from_source() -> None:
+    content = (
+        '{"problem": "Agents fail silently", "method": null, '
+        '"benchmark": null, "result": null, "limitation": null, '
+        '"technology_tags": [], "evidence_snippets": ["fabricated quote"], '
+        '"relevance_score": 0.8, "extraction_confidence": 0.9}'
+    )
+    agent = EvidenceAgent(_StubLLMClient(content))
+
+    with pytest.raises(EvidenceExtractionError, match="absent from the source"):
+        agent.extract(mission_id=uuid4(), source_id=uuid4(), source=_source())
+
+
+def test_extract_rejects_claims_without_source_snippets() -> None:
+    content = (
+        '{"problem": "Agents fail silently", "method": null, '
+        '"benchmark": null, "result": null, "limitation": null, '
+        '"technology_tags": [], "evidence_snippets": [], '
+        '"relevance_score": 0.8, "extraction_confidence": 0.9}'
+    )
+    agent = EvidenceAgent(_StubLLMClient(content))
+
+    with pytest.raises(EvidenceExtractionError, match="without source evidence"):
+        agent.extract(mission_id=uuid4(), source_id=uuid4(), source=_source())
+
+
 def test_extract_falls_back_to_deterministic_mock_for_mocked_completions() -> None:
     agent = EvidenceAgent(_StubLLMClient("not json", mocked=True))
     source = _source()
@@ -68,7 +96,9 @@ def test_extract_falls_back_to_deterministic_mock_for_mocked_completions() -> No
 
     assert first.relevance_score == second.relevance_score
     assert first.extraction_confidence == second.extraction_confidence
-    assert 0 <= first.relevance_score <= 1
+    assert first.problem is None
+    assert first.relevance_score == 0
+    assert first.extraction_confidence == 1
     assert first.evidence_snippets_json
 
 
@@ -76,7 +106,9 @@ def test_extract_end_to_end_with_mock_llm_client() -> None:
     agent = EvidenceAgent(MockLLMClient())
     mission_id, source_id = uuid4(), uuid4()
 
-    evidence = agent.extract(mission_id=mission_id, source_id=source_id, source=_source())
+    evidence = agent.extract(
+        mission_id=mission_id, source_id=source_id, source=_source()
+    )
 
     assert evidence.mission_id == mission_id
     assert evidence.source_id == source_id

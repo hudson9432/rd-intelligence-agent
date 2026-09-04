@@ -1,5 +1,6 @@
-"""Validation tests for public persistence contracts."""
+"""Validation tests for public persistence and workflow contracts."""
 
+from datetime import UTC, datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -9,6 +10,7 @@ from app.core.config import Settings
 from app.schemas import (
     EvidenceCardCreate,
     ResearchMissionCreate,
+    SourceResult,
     TechnologyOpportunityCreate,
 )
 
@@ -55,3 +57,34 @@ def test_api_key_is_stored_as_secret() -> None:
 
     assert isinstance(settings.llm_api_key, SecretStr)
     assert "not-a-real-secret" not in repr(settings)
+
+
+def test_source_result_uses_provider_neutral_fields_and_utc_time() -> None:
+    published_at = datetime(2026, 9, 4, 12, tzinfo=timezone(timedelta(hours=8)))
+
+    source = SourceResult(
+        source_type="arxiv",
+        title="Reliable agents",
+        url="https://arxiv.org/abs/9999.99999",
+        published_at=published_at,
+        authors=["Ada Researcher"],
+        summary="A source summary.",
+        metadata={"category": "cs.AI"},
+    )
+
+    assert source.published_at == datetime(2026, 9, 4, 4, tzinfo=UTC)
+    assert source.authors == ["Ada Researcher"]
+    assert source.summary == "A source summary."
+    assert source.metadata == {"category": "cs.AI"}
+
+
+def test_source_result_rejects_naive_published_time() -> None:
+    naive_time = datetime(2026, 9, 4, tzinfo=UTC).replace(tzinfo=None)
+
+    with pytest.raises(ValidationError, match="timezone"):
+        SourceResult(
+            source_type="github",
+            title="Agent repository",
+            url="https://github.com/example/agent",
+            published_at=naive_time,
+        )

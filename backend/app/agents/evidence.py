@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.core.llm import LLMClient
 from app.prompts.evidence import build_evidence_messages
@@ -14,19 +14,25 @@ from app.schemas.source_result import SourceResult
 
 
 class EvidenceExtractionError(RuntimeError):
-    """Raised when a real LLM response cannot be parsed into evidence."""
+    """Raised when an LLM response is invalid or lacks source provenance."""
 
 
 class EvidenceExtraction(BaseModel):
     """Structured shape requested from the LLM before it becomes an EvidenceCard."""
+
+    model_config = ConfigDict(extra="forbid")
 
     problem: str | None = None
     method: str | None = None
     benchmark: str | None = None
     result: str | None = None
     limitation: str | None = None
-    technology_tags: list[str] = Field(default_factory=list)
-    evidence_snippets: list[str] = Field(default_factory=list)
+    technology_tags: list[Annotated[str, Field(min_length=1)]] = Field(
+        default_factory=list
+    )
+    evidence_snippets: list[Annotated[str, Field(min_length=1)]] = Field(
+        default_factory=list
+    )
     relevance_score: float = Field(ge=0, le=1)
     extraction_confidence: float = Field(ge=0, le=1)
 
@@ -52,6 +58,8 @@ class EvidenceAgent:
                 ) from error
             extraction = self._deterministic_mock_extraction(source)
 
+        self._validate_provenance(extraction, source)
+
         return EvidenceCardCreate(
             mission_id=mission_id,
             source_id=source_id,
@@ -75,15 +83,47 @@ class EvidenceAgent:
         source, so the same source always yields the same evidence.
         """
 
-        digest = hashlib.sha256(source.content_hash.encode("utf-8")).hexdigest()
-        score = int(digest[:4], 16) / 0xFFFF
-        snippet_source = source.content or source.raw_summary or source.title
+        snippet_source = source.content or source.summary or source.title
         snippet = snippet_source[:200]
 
         return EvidenceExtraction(
-            problem=f"Mock-extracted problem statement from: {source.title}",
-            technology_tags=[source.source_type],
             evidence_snippets=[snippet] if snippet else [],
-            relevance_score=round(score, 4),
-            extraction_confidence=round(score, 4),
+            relevance_score=0,
+            extraction_confidence=1,
         )
+
+    @staticmethod
+    def _validate_provenance(
+        extraction: EvidenceExtraction, source: SourceResult
+    ) -> None:
+        """Reject quotes that are absent from the supplied source text."""
+
+        source_fields = tuple(
+            value
+            for value in (source.title, source.summary, source.content)
+            if value is not None
+        )
+        unsupported_snippets = [
+            snippet
+            for snippet in extraction.evidence_snippets
+            if not any(snippet in source_field for source_field in source_fields)
+        ]
+        if unsupported_snippets:
+            raise EvidenceExtractionError(
+                "LLM response contained evidence snippets absent from the source"
+            )
+
+        factual_fields = (
+            extraction.problem,
+            extraction.method,
+            extraction.benchmark,
+            extraction.result,
+            extraction.limitation,
+        )
+        if (
+            any(value is not None for value in factual_fields)
+            and not extraction.evidence_snippets
+        ):
+            raise EvidenceExtractionError(
+                "LLM response contained factual claims without source evidence snippets"
+            )
