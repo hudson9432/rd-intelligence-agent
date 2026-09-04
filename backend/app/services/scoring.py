@@ -61,19 +61,30 @@ def direction_evidence_coverage(
 
     claim_scores: list[float] = []
     for claim in direction.claims:
-        if not claim.evidence_ids:
-            claim_scores.append(0.0)
-            continue
-
-        cards = [evidence_by_id[evidence_id] for evidence_id in claim.evidence_ids]
-        qualities = [
-            card.relevance_score * card.extraction_confidence for card in cards
-        ]
-        independent_sources = len({card.source_id for card in cards})
-        corroboration_bonus = min(0.2, max(0, independent_sources - 1) * 0.1)
-        claim_scores.append(min(1.0, max(qualities) + corroboration_bonus))
+        claim_scores.append(
+            evidence_strength(claim.evidence_ids, evidence_by_id)
+        )
 
     return round(sum(claim_scores) / len(claim_scores), 4)
+
+
+def evidence_strength(
+    evidence_ids: Iterable[UUID], evidence_by_id: dict[UUID, EvidenceCard]
+) -> float:
+    """Score evidence quality with a bounded independent-source bonus."""
+
+    unique_ids = list(dict.fromkeys(evidence_ids))
+    validate_evidence_references(unique_ids, evidence_by_id)
+    if not unique_ids:
+        return 0.0
+
+    cards = [evidence_by_id[evidence_id] for evidence_id in unique_ids]
+    qualities = [
+        card.relevance_score * card.extraction_confidence for card in cards
+    ]
+    independent_sources = len({card.source_id for card in cards})
+    corroboration_bonus = min(0.2, max(0, independent_sources - 1) * 0.1)
+    return round(min(1.0, max(qualities) + corroboration_bonus), 4)
 
 
 def question_diversity(question: str, accepted_questions: Sequence[str]) -> float:

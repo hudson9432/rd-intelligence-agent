@@ -22,6 +22,7 @@ class DirectionClaim(BaseModel):
     id: str = Field(min_length=1, max_length=100)
     statement: str = Field(min_length=1)
     evidence_ids: list[UUID] = Field(default_factory=list)
+    is_core: bool = True
 
 
 class DirectionDraft(BaseModel):
@@ -120,6 +121,35 @@ class CriticOutcome(BaseModel):
         return self
 
 
+ClaimVerdict = Literal["supported", "contested", "unknown", "refuted"]
+
+
+class ClaimReview(BaseModel):
+    """Independent review input used to judge one direction claim."""
+
+    direction_id: str = Field(min_length=1, max_length=100)
+    claim_id: str = Field(min_length=1, max_length=100)
+    opposing_evidence_ids: list[UUID] = Field(default_factory=list)
+    poc_testability: UnitScore
+    rationale: str = Field(min_length=1)
+
+
+class EvaluatedClaim(BaseModel):
+    """Deterministic pro/con result for one claim."""
+
+    direction_id: str = Field(min_length=1, max_length=100)
+    claim_id: str = Field(min_length=1, max_length=100)
+    statement: str = Field(min_length=1)
+    is_core: bool
+    supporting_evidence_ids: list[UUID] = Field(default_factory=list)
+    opposing_evidence_ids: list[UUID] = Field(default_factory=list)
+    support_strength: UnitScore
+    counterevidence_strength: UnitScore | None = None
+    poc_testability: UnitScore | None = None
+    verdict: ClaimVerdict
+    rationale: str = Field(min_length=1)
+
+
 class PocCandidate(BaseModel):
     """Evidence-grounded direction that D can turn into an executable PoC."""
 
@@ -128,6 +158,7 @@ class PocCandidate(BaseModel):
     hypothesis: str = Field(min_length=1)
     evidence_ids: list[UUID] = Field(min_length=1)
     evidence_coverage: UnitScore
+    claim_assessments: list[EvaluatedClaim] = Field(min_length=1)
     unresolved_questions: list[str] = Field(default_factory=list)
 
 
@@ -138,6 +169,7 @@ class PhaseCHandoff(BaseModel):
         "ready_for_poc", "research_required", "no_viable_direction"
     ]
     poc_candidates: list[PocCandidate] = Field(default_factory=list, max_length=4)
+    claim_assessments: list[EvaluatedClaim] = Field(default_factory=list)
     research_request: TargetedResearchRequest | None = None
     reason: str = Field(min_length=1)
 

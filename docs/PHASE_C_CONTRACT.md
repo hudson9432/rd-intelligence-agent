@@ -47,6 +47,26 @@ the Critic creates a bounded research request from the least-supported claims.
 Accepted questions with suggested searches also produce a targeted request of
 at most three queries.
 
+## Pro/con claim verdicts
+
+After targeted evidence is available, an independent reviewer identifies
+opposing evidence IDs and scores whether each claim can be tested by a bounded
+PoC. Code calculates support and counterevidence strength from the cited
+evidence cards. Missing review or missing evidence remains unknown and is never
+converted into negative evidence.
+
+Each claim receives one of four verdicts:
+
+- supported: meaningful support with weak counterevidence;
+- contested: meaningful evidence exists on both sides;
+- unknown: support or independent review is insufficient;
+- refuted: strong counterevidence exceeds support by a material margin.
+
+A direction is PoC-ready only when it has at least one minimally supported and
+testable core hypothesis, no core claim is refuted, and every unresolved core
+claim can be tested within the PoC. A contested direction may therefore remain
+PoC-ready: the purpose of its PoC is to resolve the uncertainty.
+
 ## Handoff to D
 
 PhaseCHandoff.status is exactly one of:
@@ -57,7 +77,9 @@ PhaseCHandoff.status is exactly one of:
 - research_required: C supplies a TargetedResearchRequest; D invokes the
   source tools and reruns C while enforcing the workflow iteration limit.
 - no_viable_direction: material gaps remain after D reports that the research
-  budget is exhausted. No PoC candidate is emitted.
+  budget is exhausted and no direction satisfies the core-claim viability
+  rules. No PoC candidate is emitted. Missing evidence never causes this state
+  before the bounded re-search opportunity has been used.
 
 C therefore owns the content of targeted re-search and the viability gate. D
 owns loop execution, iteration limits, persistence, events, and conversion of a
@@ -68,4 +90,4 @@ PoC candidate into an ActionPlan.
 The Phase C implementation deliberately does not modify shared schema exports,
 configuration, API routers, database models, repositories, or requirements.
 LLM and mock implementations integrate through the DirectionGenerator,
-CritiqueQuestionGenerator, and QuestionReviewer protocols.
+CritiqueQuestionGenerator, QuestionReviewer, and ClaimReview contracts.

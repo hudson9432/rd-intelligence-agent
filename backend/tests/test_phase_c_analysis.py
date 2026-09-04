@@ -10,6 +10,7 @@ from app.agents.analyst import AnalystAgent
 from app.agents.critic import CriticAgent
 from app.schemas.analysis import (
     AnalystOutcome,
+    ClaimReview,
     CritiqueQuestionDraft,
     DirectionClaim,
     DirectionDraft,
@@ -22,7 +23,7 @@ from app.services.scoring import (
     direction_evidence_coverage,
     question_diversity,
 )
-from app.services.phase_c import build_phase_c_handoff
+from app.services.phase_c import build_phase_c_handoff, classify_claim_verdict
 
 
 def evidence_card(
@@ -454,6 +455,15 @@ def test_phase_c_hands_evidence_grounded_poc_candidate_to_d() -> None:
         mission_goal="Evaluate conversational commerce.",
         analysis=analysis,
         critique=critique,
+        evidence=[card],
+        claim_reviews=[
+            ClaimReview(
+                direction_id="d1",
+                claim_id="c1",
+                poc_testability=0.9,
+                rationale="The core hypothesis can be measured in an offline test.",
+            )
+        ],
     )
 
     assert handoff.status == "ready_for_poc"
@@ -493,11 +503,15 @@ def test_phase_c_requests_research_then_reports_no_viable_direction_when_exhaust
         mission_goal="Evaluate conversational commerce.",
         analysis=analysis,
         critique=critique,
+        evidence=[card],
+        claim_reviews=[],
     )
     final_handoff = build_phase_c_handoff(
         mission_goal="Evaluate conversational commerce.",
         analysis=analysis,
         critique=critique,
+        evidence=[card],
+        claim_reviews=[],
         research_exhausted=True,
     )
 
@@ -505,3 +519,138 @@ def test_phase_c_requests_research_then_reports_no_viable_direction_when_exhaust
     assert retry_handoff.research_request == critique.research_request
     assert final_handoff.status == "no_viable_direction"
     assert not final_handoff.poc_candidates
+
+
+def test_missing_counterevidence_review_is_unknown_not_negative() -> None:
+    assert classify_claim_verdict(
+        support_strength=0.8,
+        counterevidence_strength=None,
+    ) == "unknown"
+
+
+def test_strong_counterevidence_refutes_a_weakly_supported_claim() -> None:
+    assert classify_claim_verdict(
+        support_strength=0.3,
+        counterevidence_strength=0.8,
+    ) == "refuted"
+
+
+def test_contested_but_testable_claim_can_still_become_a_poc() -> None:
+    mission_id = uuid4()
+    supporting = evidence_card(
+        mission_id=mission_id,
+        relevance=0.9,
+        confidence=0.9,
+    )
+    opposing = evidence_card(
+        mission_id=mission_id,
+        relevance=0.8,
+        confidence=0.8,
+    )
+    draft = direction(
+        "d1",
+        "Hybrid recommender",
+        [supporting.id],
+        claim_id="c1",
+    )
+    analysis = AnalystOutcome(
+        status="ready",
+        active_directions=[ranked_direction(draft)],
+    )
+    critique_question = question(
+        "q1",
+        direction_id="d1",
+        claim_id="c1",
+        text="Do results differ across product categories?",
+        evidence_ids=[opposing.id],
+    )
+    critique = CriticAgent(
+        FixedQuestionGenerator([critique_question]),
+        ScoreByQuestionReviewer({}),
+    ).critique(
+        mission_goal="Evaluate conversational commerce.",
+        analysis=analysis,
+        evidence=[supporting, opposing],
+    )
+
+    handoff = build_phase_c_handoff(
+        mission_goal="Evaluate conversational commerce.",
+        analysis=analysis,
+        critique=critique,
+        evidence=[supporting, opposing],
+        claim_reviews=[
+            ClaimReview(
+                direction_id="d1",
+                claim_id="c1",
+                opposing_evidence_ids=[opposing.id],
+                poc_testability=0.9,
+                rationale="Evidence conflicts, but an A/B test can resolve it.",
+            )
+        ],
+    )
+
+    assert handoff.status == "ready_for_poc"
+    assert handoff.claim_assessments[0].verdict == "contested"
+
+
+def test_no_poc_only_after_new_evidence_remains_insufficient() -> None:
+    mission_id = uuid4()
+    weak_support = evidence_card(
+        mission_id=mission_id,
+        relevance=0.4,
+        confidence=0.5,
+    )
+    draft = direction(
+        "d1",
+        "Unproven direction",
+        [weak_support.id],
+        claim_id="c1",
+    )
+    analysis = AnalystOutcome(
+        status="ready",
+        active_directions=[ranked_direction(draft)],
+    )
+    critique_question = question(
+        "q1",
+        direction_id="d1",
+        claim_id="c1",
+        text="Can the central outcome be measured in the available environment?",
+        evidence_ids=[],
+    )
+    critique = CriticAgent(
+        FixedQuestionGenerator([critique_question]),
+        ScoreByQuestionReviewer({}),
+    ).critique(
+        mission_goal="Evaluate an extension.",
+        analysis=analysis,
+        evidence=[weak_support],
+    )
+    reviews = [
+        ClaimReview(
+            direction_id="d1",
+            claim_id="c1",
+            poc_testability=0.8,
+            rationale="The hypothesis is testable but still lacks minimum support.",
+        )
+    ]
+
+    before_limit = build_phase_c_handoff(
+        mission_goal="Evaluate an extension.",
+        analysis=analysis,
+        critique=critique,
+        evidence=[weak_support],
+        claim_reviews=reviews,
+    )
+    after_limit = build_phase_c_handoff(
+        mission_goal="Evaluate an extension.",
+        analysis=analysis,
+        critique=critique,
+        evidence=[weak_support],
+        claim_reviews=reviews,
+        research_exhausted=True,
+    )
+
+    assert before_limit.status == "research_required"
+    assert before_limit.claim_assessments[0].verdict == "unknown"
+    assert after_limit.status == "no_viable_direction"
+    assert "Added evidence remained insufficient" in after_limit.reason
