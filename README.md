@@ -21,6 +21,7 @@ agent workflow remain forthcoming.
 | Repository and local environments | Complete |
 | FastAPI health API and initial schemas | Complete |
 | Next.js dashboard shell | Complete |
+| Frontend mission list and creation wired to the mission API | Complete |
 | SQLite persistence and mission APIs | Complete |
 | LLM provider and Evidence extraction foundations | In progress |
 | Research tools and end-to-end agent workflow | Planned |
@@ -116,11 +117,14 @@ In a separate terminal:
 
 ```bash
 cd frontend
+cp .env.example .env.local
 npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. For production verification, run:
+Open <http://localhost:3000>. The dashboard reads and creates missions through
+the backend, so start the API first; if it is unreachable the page renders a
+degraded state instead of failing. For production verification, run:
 
 ```bash
 npm run lint
@@ -148,6 +152,14 @@ the populated `.env` file or API keys.
 | `MOCK_EXTERNAL_APIS` | Future deterministic source mode | `true` |
 | `DEMO_MODE` | Future offline end-to-end demo mode | `false` |
 
+Frontend configuration lives in `frontend/.env.example`. `API_BASE_URL` is read
+on the server only and is never exposed to the browser, so it must not carry the
+`NEXT_PUBLIC_` prefix.
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `API_BASE_URL` | Backend base URL used by Server Components and Actions | `http://127.0.0.1:8000` |
+
 ## Current placeholders
 
 - `backend/app/agents`: Orchestrator, Search, Analyst, Critic, and Action agents;
@@ -156,8 +168,8 @@ the populated `.env` file or API keys.
 - Most `backend/app/services` modules beyond the mission service.
 - Prompts beyond the initial Evidence extraction prompt.
 - `docs` and `demo`: architecture notes and deterministic demo fixtures.
-- The dashboard's **New Research Mission** action remains disabled until the
-  frontend workflow phase connects it to the implemented mission API.
+- The dashboard lists and creates missions, but evidence, decision, and action
+  views still require the agent workflow phases.
 
 ## Collaborating
 

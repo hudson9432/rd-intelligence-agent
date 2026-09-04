@@ -33,8 +33,9 @@ Phases 1–2 (repository foundation and persistence) are complete:
   an OpenAI-compatible implementation with bounded retries.
 - A standalone Evidence extraction component with Pydantic validation and
   exact source-snippet provenance checks.
-- Next.js App Router dashboard shell with an intentionally disabled mission
-  action.
+- Next.js App Router dashboard that lists missions and creates them through a
+  Server Action, degrading to an explicit unavailable state when the API cannot
+  be reached. Evidence, decision, and action views are not built.
 - Tests, pinned direct dependencies, and offline-compatible frontend build.
 
 Source integrations, the complete Evidence persistence/event pipeline, other
