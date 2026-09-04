@@ -53,17 +53,13 @@ def direction_evidence_coverage(
     """
 
     all_ids = [
-        evidence_id
-        for claim in direction.claims
-        for evidence_id in claim.evidence_ids
+        evidence_id for claim in direction.claims for evidence_id in claim.evidence_ids
     ]
     validate_evidence_references(all_ids, evidence_by_id)
 
     claim_scores: list[float] = []
     for claim in direction.claims:
-        claim_scores.append(
-            evidence_strength(claim.evidence_ids, evidence_by_id)
-        )
+        claim_scores.append(evidence_strength(claim.evidence_ids, evidence_by_id))
 
     return round(sum(claim_scores) / len(claim_scores), 4)
 
@@ -79,9 +75,7 @@ def evidence_strength(
         return 0.0
 
     cards = [evidence_by_id[evidence_id] for evidence_id in unique_ids]
-    qualities = [
-        card.relevance_score * card.extraction_confidence for card in cards
-    ]
+    qualities = [card.relevance_score * card.extraction_confidence for card in cards]
     independent_sources = len({card.source_id for card in cards})
     corroboration_bonus = min(0.2, max(0, independent_sources - 1) * 0.1)
     return round(min(1.0, max(qualities) + corroboration_bonus), 4)
@@ -119,15 +113,82 @@ def _jaccard(left: set[str], right: set[str]) -> float:
 #: overlap with unrelated text.
 _GOAL_STOPWORDS = frozenset(
     {
-        "a", "an", "the", "and", "or", "of", "to", "in", "on", "for", "with",
-        "by", "from", "at", "as", "is", "are", "was", "were", "be", "been",
-        "it", "its", "this", "that", "these", "those", "we", "our", "us",
-        "you", "your", "they", "their", "whether", "should", "would", "could",
-        "can", "may", "might", "will", "shall", "do", "does", "did", "not",
-        "no", "if", "than", "then", "so", "such", "into", "over", "out",
-        "about", "more", "most", "other", "some", "any", "all", "each",
-        "rather", "decide", "determine", "evaluate", "assess", "investigate",
-        "explore", "invest", "use", "make", "new", "line",
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "of",
+        "to",
+        "in",
+        "on",
+        "for",
+        "with",
+        "by",
+        "from",
+        "at",
+        "as",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "it",
+        "its",
+        "this",
+        "that",
+        "these",
+        "those",
+        "we",
+        "our",
+        "us",
+        "you",
+        "your",
+        "they",
+        "their",
+        "whether",
+        "should",
+        "would",
+        "could",
+        "can",
+        "may",
+        "might",
+        "will",
+        "shall",
+        "do",
+        "does",
+        "did",
+        "not",
+        "no",
+        "if",
+        "than",
+        "then",
+        "so",
+        "such",
+        "into",
+        "over",
+        "out",
+        "about",
+        "more",
+        "most",
+        "other",
+        "some",
+        "any",
+        "all",
+        "each",
+        "rather",
+        "decide",
+        "determine",
+        "evaluate",
+        "assess",
+        "investigate",
+        "explore",
+        "invest",
+        "use",
+        "make",
+        "new",
+        "line",
     }
 )
 
