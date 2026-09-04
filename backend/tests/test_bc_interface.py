@@ -121,6 +121,7 @@ def test_b_evidence_agent_connects_to_c_and_produces_poc_handoff() -> None:
     extracted = EvidenceAgent(FixedLLMClient([extraction_json])).extract(
         mission_id=mission_id,
         source_id=source_id,
+        mission_goal="Improve grounded conversational product recommendation.",
         source=SourceResult(
             source_type="arxiv",
             title="Hybrid conversational recommendation",

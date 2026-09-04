@@ -32,7 +32,10 @@ Phases 1–2 (repository foundation and persistence) are complete:
 - A provider-independent synchronous LLM client, deterministic mock client, and
   an OpenAI-compatible implementation with bounded retries.
 - A standalone Evidence extraction component with Pydantic validation and
-  exact source-snippet provenance checks.
+  exact source-snippet provenance checks. It takes the mission goal, because
+  `relevance_score` is meaningless without one. Offline extraction scores
+  relevance by deterministic lexical overlap with the goal and quotes a
+  limitation only when the source states one; it never invents a field.
 - A LangGraph workflow orchestrator with a bounded re-search loop, persisted
   `AgentEvent` transitions, mission status handling, and
   `POST /missions/{id}/run`. Routing and the iteration limit remain in

@@ -53,3 +53,9 @@ deterministic Python: routers are pure functions of state, the iteration limit
 is enforced inside the analysis node, and LangGraph's `recursion_limit` is only
 a backstop against a routing bug. Nodes sequence work and emit events; no
 scoring, parsing, or business rule lives in one.
+
+Phase 14 has a hard prerequisite: the fixtures in `demo/fixtures/` are
+one-sentence blurbs with no stated limitations, and offline extraction quotes a
+limitation only when the source states one. Without richer fixtures the demo
+stops at `research_required` however well the agents work. Capture them from
+the live APIs; do not hand-write abstracts for real papers.
