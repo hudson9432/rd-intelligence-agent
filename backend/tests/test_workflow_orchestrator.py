@@ -170,6 +170,18 @@ class FailingSearch:
         raise WorkflowStageError("The source provider is unavailable.")
 
 
+class FailingAnalysis:
+    def analyze(
+        self,
+        *,
+        mission_goal: str,
+        evidence: Sequence[EvidenceCard],
+        research_exhausted: bool,
+    ) -> PhaseCHandoff:
+        del mission_goal, evidence, research_exhausted
+        raise WorkflowStageError("The analysis provider is unavailable.")
+
+
 def build_stages(
     *,
     search: object | None = None,
@@ -324,9 +336,7 @@ def test_evidence_accumulates_across_rounds_without_duplicates() -> None:
     research = PhaseCHandoff(
         status="research_required",
         reason="Thin.",
-        research_request=TargetedResearchRequest(
-            queries=["more"], reason="Need more."
-        ),
+        research_request=TargetedResearchRequest(queries=["more"], reason="Need more."),
     )
     analysis = ScriptedAnalysis([research, make_poc_handoff()])
     stages = build_stages(
@@ -356,6 +366,21 @@ def test_a_failing_stage_ends_the_run_as_failed() -> None:
     assert result.events[-1].event_type == "workflow_failed"
 
 
+def test_a_failed_run_reports_evidence_accumulated_before_the_failure() -> None:
+    card = make_evidence()
+    stages = build_stages(
+        search=RecordingSearch([[make_source("a")]]),
+        evidence=ScriptedEvidence([[card]]),
+        analysis=FailingAnalysis(),
+    )
+
+    result = WorkflowOrchestrator(stages).run(make_state())
+
+    assert result.status == "failed"
+    assert result.final_stage is WorkflowStage.ANALYSIS
+    assert result.evidence_count == 1
+
+
 def test_events_stream_to_the_sink_as_they_happen() -> None:
     seen: list[str] = []
     stages = build_stages(analysis=ScriptedAnalysis([make_poc_handoff()]))
@@ -369,7 +394,9 @@ def test_events_stream_to_the_sink_as_they_happen() -> None:
 
 def test_the_goal_seeds_the_first_search_when_no_queries_are_given() -> None:
     search = RecordingSearch([])
-    stages = build_stages(search=search, analysis=ScriptedAnalysis([make_poc_handoff()]))
+    stages = build_stages(
+        search=search, analysis=ScriptedAnalysis([make_poc_handoff()])
+    )
     state = make_state()
 
     WorkflowOrchestrator(stages).run(state)
@@ -429,9 +456,7 @@ def test_the_longest_legal_path_fits_inside_the_recursion_limit() -> None:
     research = PhaseCHandoff(
         status="research_required",
         reason="Thin.",
-        research_request=TargetedResearchRequest(
-            queries=["more"], reason="Need more."
-        ),
+        research_request=TargetedResearchRequest(queries=["more"], reason="Need more."),
     )
     search = RecordingSearch([])
     analysis = ScriptedAnalysis([research] * 6 + [make_poc_handoff()])

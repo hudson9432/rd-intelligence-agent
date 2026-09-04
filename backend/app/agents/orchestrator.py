@@ -262,6 +262,7 @@ class WorkflowOrchestrator:
                 iterations_used=final.iteration,
                 handoff_status=final.handoff.status if final.handoff else None,
                 decision=final.decision,
+                evidence_count=len(final.evidence),
                 events=events,
                 error=final.error,
             )
@@ -272,6 +273,18 @@ class WorkflowOrchestrator:
             "Workflow reached a terminal state.",
             iterations_used=final.iteration,
             handoff_status=final.handoff.status if final.handoff else None,
+            evidence_count=len(final.evidence),
+            decision=(
+                final.decision.model_dump(mode="json") if final.decision else None
+            ),
+            poc_candidates=(
+                [
+                    candidate.model_dump(mode="json")
+                    for candidate in final.handoff.poc_candidates
+                ]
+                if final.handoff
+                else []
+            ),
         )
 
         return WorkflowRunResult(
@@ -289,9 +302,7 @@ class WorkflowOrchestrator:
 
     # ----------------------------------------------------------------- nodes
 
-    def _search(
-        self, state: WorkflowState, config: RunnableConfig
-    ) -> dict[str, Any]:
+    def _search(self, state: WorkflowState, config: RunnableConfig) -> dict[str, Any]:
         emit = _emitter(config)
         try:
             found = list(
@@ -314,9 +325,7 @@ class WorkflowOrchestrator:
         )
         return {"sources": found}
 
-    def _evidence(
-        self, state: WorkflowState, config: RunnableConfig
-    ) -> dict[str, Any]:
+    def _evidence(self, state: WorkflowState, config: RunnableConfig) -> dict[str, Any]:
         emit = _emitter(config)
         try:
             extracted = list(
@@ -344,9 +353,7 @@ class WorkflowOrchestrator:
         )
         return {"evidence": merged}
 
-    def _analysis(
-        self, state: WorkflowState, config: RunnableConfig
-    ) -> dict[str, Any]:
+    def _analysis(self, state: WorkflowState, config: RunnableConfig) -> dict[str, Any]:
         emit = _emitter(config)
         try:
             handoff = self.stages.analysis.analyze(
@@ -417,9 +424,7 @@ class WorkflowOrchestrator:
             "queries": list(request.queries),
         }
 
-    def _decision(
-        self, state: WorkflowState, config: RunnableConfig
-    ) -> dict[str, Any]:
+    def _decision(self, state: WorkflowState, config: RunnableConfig) -> dict[str, Any]:
         emit = _emitter(config)
         if state.handoff is None:  # pragma: no cover - unreachable via routing
             return _failure(

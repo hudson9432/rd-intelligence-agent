@@ -24,7 +24,7 @@ from app.agents.analyst import AnalystAgent
 from app.agents.critic import CriticAgent
 from app.agents.orchestrator import WorkflowStageError
 from app.core.config import Settings, get_settings
-from app.core.llm import LLMClient, get_llm_client
+from app.core.llm import LLMClient, LLMProviderError, get_llm_client
 from app.schemas.analysis import ClaimReview, PhaseCHandoff
 from app.schemas.evidence_card import EvidenceCard
 from app.services.phase_c import build_phase_c_handoff
@@ -47,7 +47,9 @@ class PhaseCAnalysisStage:
         self._analyst = AnalystAgent(
             adapter, max_active_directions=max_active_directions
         )
-        self._critic = CriticAgent(adapter, adapter, minimum_score=minimum_question_score)
+        self._critic = CriticAgent(
+            adapter, adapter, minimum_score=minimum_question_score
+        )
 
     def analyze(
         self,
@@ -80,7 +82,11 @@ class PhaseCAnalysisStage:
                 claim_reviews=claim_reviews,
                 research_exhausted=research_exhausted,
             )
-        except AnalysisGenerationError as error:
+        except LLMProviderError as error:
+            raise WorkflowStageError(
+                "The analysis provider request failed; no inference was made."
+            ) from error
+        except (AnalysisGenerationError, ValueError) as error:
             # A provider that returns an uninterpretable response is a failure,
             # not a reason to guess: invariant 1 forbids inventing the analysis.
             raise WorkflowStageError(

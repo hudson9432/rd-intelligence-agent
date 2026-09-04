@@ -24,8 +24,9 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.agents.evidence import EvidenceAgent, EvidenceExtractionError
+from app.agents.orchestrator import WorkflowStageError
 from app.core.config import Settings, get_settings
-from app.core.llm import LLMClient, get_llm_client
+from app.core.llm import LLMClient, LLMProviderError, get_llm_client
 from app.repositories.evidence_card import EvidenceCardRepository
 from app.repositories.source_document import SourceDocumentRepository
 from app.schemas.evidence_card import EvidenceCard, EvidenceCardCreate
@@ -59,18 +60,33 @@ class PersistingEvidenceStage:
         if not sources:
             return []
 
-        stored_urls = {
-            normalize_url(document.url)
+        stored_documents = {
+            normalize_url(document.url): document
             for document in self._sources.list_for_mission(mission_id)
+        }
+        evidenced_source_ids = {
+            str(card.source_id) for card in self._evidence.list_for_mission(mission_id)
         }
 
         extracted: list[EvidenceCardCreate] = []
+        attempted = 0
+        rejected = 0
+        processed_urls: set[str] = set()
         for source in sources:
-            if normalize_url(source.url) in stored_urls:
+            normalized_url = normalize_url(source.url)
+            if normalized_url in processed_urls:
                 continue
-            stored_urls.add(normalize_url(source.url))
+            processed_urls.add(normalized_url)
 
-            document = self._sources.save(self._to_document(mission_id, source))
+            document = stored_documents.get(normalized_url)
+            if document is not None and document.id in evidenced_source_ids:
+                continue
+
+            attempted += 1
+
+            if document is None:
+                document = self._sources.save(self._to_document(mission_id, source))
+                stored_documents[normalized_url] = document
             try:
                 extracted.append(
                     self._agent.extract(
@@ -80,9 +96,14 @@ class PersistingEvidenceStage:
                         mission_goal=goal,
                     )
                 )
+            except LLMProviderError as error:
+                raise WorkflowStageError(
+                    "The evidence provider request failed; no inference was made."
+                ) from error
             except EvidenceExtractionError:
                 # The source stays stored as a record of what was retrieved,
                 # but nothing unverifiable enters the evidence pool.
+                rejected += 1
                 logger.warning(
                     "Evidence extraction rejected source %s for mission %s",
                     source.url,
@@ -90,17 +111,19 @@ class PersistingEvidenceStage:
                     exc_info=True,
                 )
 
+        if attempted and rejected == attempted:
+            raise WorkflowStageError(
+                "The evidence provider produced no verifiable structured output "
+                f"for all {attempted} new source(s)."
+            )
+
         if not extracted:
             return []
 
-        return persist_evidence_for_analysis(
-            extracted=extracted, writer=self._evidence
-        )
+        return persist_evidence_for_analysis(extracted=extracted, writer=self._evidence)
 
     @staticmethod
-    def _to_document(
-        mission_id: UUID, source: SourceResult
-    ) -> SourceDocumentCreate:
+    def _to_document(mission_id: UUID, source: SourceResult) -> SourceDocumentCreate:
         return SourceDocumentCreate(
             mission_id=mission_id,
             source_type=source.source_type,

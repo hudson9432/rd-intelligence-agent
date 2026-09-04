@@ -99,12 +99,22 @@ class WorkflowRunResult(BaseModel):
     status: Literal["completed", "failed"]
     final_stage: WorkflowStage
     iterations_used: int
-    handoff_status: Literal[
-        "ready_for_poc", "research_required", "no_viable_direction"
-    ] | None = None
+    handoff_status: (
+        Literal["ready_for_poc", "research_required", "no_viable_direction"] | None
+    ) = None
     decision: WorkflowDecision | None = None
     action_plan: ActionPlanCreate | None = None
     poc_candidates: list[PocCandidate] = Field(default_factory=list)
     evidence_count: int = Field(default=0, ge=0)
     events: list[WorkflowEvent] = Field(default_factory=list)
     error: str | None = None
+
+
+class WorkflowRunAccepted(BaseModel):
+    """Acknowledgement returned when a workflow is queued in the background."""
+
+    mission_id: UUID
+    status: Literal["accepted"] = "accepted"
+    message: str = "Workflow accepted for background execution."
+    mission_url: str
+    events_url: str

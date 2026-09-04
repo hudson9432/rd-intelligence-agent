@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     llm_base_url: str | None = None
     llm_api_key: SecretStr | None = None
     llm_model: str | None = None
+    llm_min_request_interval_seconds: float = Field(default=0, ge=0, le=60)
     github_token: SecretStr | None = None
 
     mock_llm: bool = True

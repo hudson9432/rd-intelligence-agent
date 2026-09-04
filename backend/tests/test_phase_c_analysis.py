@@ -18,12 +18,12 @@ from app.schemas.analysis import (
     SemanticQuestionScores,
 )
 from app.schemas.evidence_card import EvidenceCard
+from app.services.phase_c import build_phase_c_handoff, classify_claim_verdict
 from app.services.scoring import (
     UnknownEvidenceReferenceError,
     direction_evidence_coverage,
     question_diversity,
 )
-from app.services.phase_c import build_phase_c_handoff, classify_claim_verdict
 
 
 def evidence_card(

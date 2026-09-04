@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 import re
-
+import unicodedata
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.llm import LLMClient
+from app.core.llm import LLMClient, LLMStructuredOutputError
 from app.prompts.evidence import build_evidence_messages
 from app.schemas.evidence_card import EvidenceCardCreate
 from app.schemas.source_result import SourceResult
 from app.services.scoring import goal_overlap
-
 
 #: Phrases that mark a sentence as stating a scope limit or caveat. Kept
 #: explicit so the match is auditable rather than a general-purpose classifier.
@@ -104,16 +103,18 @@ class EvidenceAgent:
         """
 
         messages = build_evidence_messages(source, mission_goal=mission_goal)
-        completion = self._llm_client.complete(messages)
-
         try:
-            extraction = EvidenceExtraction.model_validate_json(completion.content)
-        except ValidationError as error:
-            if not completion.mocked:
-                raise EvidenceExtractionError(
-                    "LLM response could not be parsed into structured evidence"
-                ) from error
-            extraction = self._deterministic_mock_extraction(source, mission_goal)
+            extraction = self._llm_client.complete_structured(
+                messages,
+                EvidenceExtraction,
+                mock_factory=lambda: self._deterministic_mock_extraction(
+                    source, mission_goal
+                ),
+            )
+        except LLMStructuredOutputError as error:
+            raise EvidenceExtractionError(
+                "LLM response could not be parsed into structured evidence"
+            ) from error
 
         self._validate_provenance(extraction, source)
 
@@ -186,10 +187,16 @@ class EvidenceAgent:
             for value in (source.title, source.summary, source.content)
             if value is not None
         )
+        normalized_source_fields = tuple(
+            _normalize_provenance_text(value) for value in source_fields
+        )
         unsupported_snippets = [
             snippet
             for snippet in extraction.evidence_snippets
-            if not any(snippet in source_field for source_field in source_fields)
+            if not any(
+                _normalize_provenance_text(snippet) in source_field
+                for source_field in normalized_source_fields
+            )
         ]
         if unsupported_snippets:
             raise EvidenceExtractionError(
@@ -210,3 +217,9 @@ class EvidenceAgent:
             raise EvidenceExtractionError(
                 "LLM response contained factual claims without source evidence snippets"
             )
+
+
+def _normalize_provenance_text(value: str) -> str:
+    """Normalize Unicode and whitespace without accepting paraphrased words."""
+
+    return " ".join(unicodedata.normalize("NFKC", value).split())

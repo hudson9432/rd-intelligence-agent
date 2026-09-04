@@ -8,7 +8,6 @@ during a live run.
 from datetime import UTC, datetime
 from uuid import uuid4
 
-
 from app.agents.evidence import EvidenceAgent
 from app.core.config import Settings
 from app.core.llm import MockLLMClient
