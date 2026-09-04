@@ -8,8 +8,7 @@ export function EmptyMissions() {
       </div>
       <h3>No research missions yet</h3>
       <p>
-        Your evidence-backed research missions will appear here once the
-        workflow API is connected.
+        Create a research mission to start building an evidence-backed workspace.
       </p>
     </div>
   );
