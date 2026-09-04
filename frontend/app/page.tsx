@@ -32,12 +32,14 @@ export default function Home() {
             className={styles.primaryButton}
             type="button"
             disabled
-            title="Mission creation will be enabled when the mission API is available."
+            title="Mission creation will be enabled in the frontend workflow phase."
           >
             <span aria-hidden="true">＋</span>
             New Research Mission
           </button>
-          <p className={styles.buttonNote}>Mission creation is coming in phase 2.</p>
+          <p className={styles.buttonNote}>
+            Mission API ready · dashboard integration is planned.
+          </p>
         </div>
 
         <aside className={styles.workflowCard} aria-label="Product workflow">

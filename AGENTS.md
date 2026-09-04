@@ -20,17 +20,22 @@ innovation teams.
 
 ## Current state
 
-Phase 1 (repository foundation) is complete:
+Phases 1–2 (repository foundation and persistence) are complete:
 
 - FastAPI application, environment settings, logging, and `GET /health`.
 - Initial `ResearchMission` and `AgentEvent` Pydantic schemas.
+- SQLAlchemy models and repositories for missions, sources, evidence,
+  opportunities, coverage reports, action plans, and agent events.
+- SQLite initialization with UTC timestamps, JSON fields, provenance checks,
+  and mission/source cascade behavior.
+- Mission create/list/get and event-list APIs.
 - Next.js App Router dashboard shell with an intentionally disabled mission
   action.
 - Tests, pinned direct dependencies, and offline-compatible frontend build.
 
-Database models, mission APIs, source integrations, LLM providers, agents,
-LangGraph orchestration, and demo fixtures are not implemented yet. Do not
-claim that placeholders are working features.
+Source integrations, LLM providers, agents, LangGraph orchestration, and demo
+fixtures are not implemented yet. Do not claim that placeholders are working
+features.
 
 Check [docs/ROADMAP.md](docs/ROADMAP.md) before starting work and update it only
 when a phase is genuinely complete.
@@ -137,6 +142,6 @@ A change is complete only when:
 
 ## Recommended task order
 
-Follow the numbered roadmap. The next implementation phase is **02 — persistence
-and mission APIs**. Calendar integration remains optional and should be done
-only after the core research-to-action loop is reliable.
+Follow the numbered roadmap. The next implementation phase is **03 — arXiv and
+GitHub research-source tools**. Calendar integration remains optional and
+should be done only after the core research-to-action loop is reliable.
