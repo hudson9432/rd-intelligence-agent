@@ -134,6 +134,12 @@
   margin-top: 36px;
 }
 
+.buttonNote {
+  margin-top: 0;
+  color: var(--quiet);
+  font-size: 12px;
+}
+
 .workflowCard {
   position: relative;
   overflow: hidden;

@@ -45,9 +45,8 @@ Phases 1–2 (repository foundation and persistence) are complete:
   Action remain placeholders that return empty results, so a default run
   reaches the real gate with no evidence and reports `no_viable_direction`
   rather than a simulated success.
-- Next.js App Router dashboard that lists missions and creates them through a
-  Server Action, degrading to an explicit unavailable state when the API cannot
-  be reached. Evidence, decision, and action views are not built.
+- Next.js App Router dashboard shell with an intentionally disabled mission
+  action.
 - Tests, pinned direct dependencies, and offline-compatible frontend build.
 
 Phase 3 research-source tools are implemented:

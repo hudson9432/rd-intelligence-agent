@@ -1,49 +1,15 @@
-import { BackendUnavailable } from "@/components/BackendUnavailable";
 import { EmptyMissions } from "@/components/EmptyMissions";
-import { MissionList } from "@/components/MissionList";
-import { NewMissionForm } from "@/components/NewMissionForm";
-import { listMissions } from "@/lib/api";
-import type { ResearchMission } from "@/types/mission";
 import styles from "./page.module.css";
-
-// Mission data is per-request and must never be baked into the build, which
-// runs with no backend available.
-export const dynamic = "force-dynamic";
 
 const workflow = ["Research", "Evidence", "Evaluate", "Decide", "Act"];
 
-function buildOverview(missions: ResearchMission[]) {
-  const running = missions.filter(
-    (mission) => mission.status === "running",
-  ).length;
-  const completed = missions.filter(
-    (mission) => mission.status === "completed",
-  ).length;
+const overview = [
+  { label: "Active missions", value: "0", detail: "No missions running" },
+  { label: "Evidence collected", value: "0", detail: "Across all missions" },
+  { label: "Decisions ready", value: "0", detail: "Awaiting analysis" },
+];
 
-  return [
-    {
-      label: "Total missions",
-      value: String(missions.length),
-      detail: missions.length === 1 ? "1 mission created" : "Created to date",
-    },
-    {
-      label: "Running",
-      value: String(running),
-      detail: running === 0 ? "No missions running" : "Currently in progress",
-    },
-    {
-      label: "Completed",
-      value: String(completed),
-      detail: completed === 0 ? "None finished yet" : "Ready to review",
-    },
-  ];
-}
-
-export default async function Home() {
-  const result = await listMissions();
-  const missions = result.ok ? result.data : [];
-  const overview = buildOverview(missions);
-
+export default function Home() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -75,7 +41,18 @@ export default async function Home() {
             assumptions, rank R&D opportunities, and prepare a focused PoC plan.
           </p>
           <div className={styles.heroActions}>
-            <NewMissionForm triggerClassName={styles.primaryButton} />
+            <button
+              className={styles.primaryButton}
+              type="button"
+              disabled
+              title="Mission creation will be enabled in the frontend workflow phase."
+            >
+              <span aria-hidden="true">＋</span>
+              New Research Mission
+            </button>
+            <span className={styles.buttonNote}>
+              Mission API ready · dashboard integration is planned.
+            </span>
           </div>
         </div>
 
@@ -129,20 +106,10 @@ export default async function Home() {
             <p className={styles.sectionLabel}>Workspace</p>
             <h2 id="recent-missions-title">Recent missions</h2>
           </div>
-          <span>
-            {result.ok
-              ? `${missions.length} ${missions.length === 1 ? "mission" : "missions"}`
-              : "Unavailable"}
-          </span>
+          <span>0 missions</span>
         </div>
         <div className={styles.missionSurface}>
-          {!result.ok ? (
-            <BackendUnavailable message={result.error.message} />
-          ) : missions.length === 0 ? (
-            <EmptyMissions />
-          ) : (
-            <MissionList missions={missions} />
-          )}
+          <EmptyMissions />
         </div>
       </section>
     </main>

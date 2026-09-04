@@ -21,7 +21,6 @@ the end-to-end agent workflow remains forthcoming.
 | Repository and local environments | Complete |
 | FastAPI health API and initial schemas | Complete |
 | Next.js dashboard shell | Complete |
-| Frontend mission list and creation wired to the mission API | Complete |
 | SQLite persistence and mission APIs | Complete |
 | arXiv/GitHub research source tools (`POST /research/search`) | Complete |
 | Workflow orchestrator (`POST /missions/{id}/run`) | In progress |
@@ -119,14 +118,11 @@ In a separate terminal:
 
 ```bash
 cd frontend
-cp .env.example .env.local
 npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. The dashboard reads and creates missions through
-the backend, so start the API first; if it is unreachable the page renders a
-degraded state instead of failing. For production verification, run:
+Open <http://localhost:3000>. For production verification, run:
 
 ```bash
 npm run lint
@@ -154,14 +150,6 @@ the populated `.env` file or API keys.
 | `GITHUB_TOKEN` | Optional GitHub API credential for higher rate limits | empty |
 | `MOCK_EXTERNAL_APIS` | Replay deterministic arXiv/GitHub fixtures | `true` |
 | `DEMO_MODE` | Future offline end-to-end demo mode | `false` |
-
-Frontend configuration lives in `frontend/.env.example`. `API_BASE_URL` is read
-on the server only and is never exposed to the browser, so it must not carry the
-`NEXT_PUBLIC_` prefix.
-
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `API_BASE_URL` | Backend base URL used by Server Components and Actions | `http://127.0.0.1:8000` |
 
 ## Research source search
 
@@ -208,8 +196,8 @@ see `backend/app/agents/pending_stages.py`.
 - Prompts beyond the initial Evidence extraction prompt.
 - `demo`: research-source fixtures exist; the complete offline scenario remains
   planned.
-- The dashboard lists and creates missions, but evidence, decision, and action
-  views still require the agent workflow phases.
+- The dashboard's **New Research Mission** action remains disabled until the
+  frontend workflow phase connects it to the implemented mission API.
 
 ## Collaborating
 
