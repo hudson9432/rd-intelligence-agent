@@ -140,6 +140,75 @@
   font-size: 12px;
 }
 
+.missionForm {
+  max-width: 620px;
+  margin-top: 22px;
+  padding: 22px;
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.missionForm label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.missionForm input,
+.missionForm textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid rgba(24, 39, 31, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.missionForm textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.missionForm input:focus,
+.missionForm textarea:focus {
+  outline: 2px solid rgba(45, 125, 86, 0.3);
+  border-color: var(--accent);
+}
+
+.submitButton {
+  min-height: 42px;
+  justify-self: start;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: white;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.submitButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.errorMessage {
+  max-width: 620px;
+  margin-top: 16px;
+  color: #a33d32;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .workflowCard {
   position: relative;
   overflow: hidden;
@@ -280,6 +349,45 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
+.missionList {
+  display: grid;
+  gap: 8px;
+}
+
+.missionItem {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.missionItem h3 {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.missionItem p {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.missionStatus {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(45, 125, 86, 0.1);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
 .sectionHeading {
   margin-bottom: 22px;
   display: flex;
@@ -357,6 +465,15 @@
 
   .workflowCard {
     padding: 22px;
+  }
+
+  .missionForm {
+    padding: 18px;
+  }
+
+  .missionItem {
+    flex-direction: column;
+    gap: 12px;
   }
 
   .overview {
