@@ -26,6 +26,7 @@ from app.schemas.analysis import (
     TargetedResearchRequest,
 )
 from app.schemas.evidence_card import EvidenceCard
+from app.schemas.search_agent import SearchAgentOutput
 from app.schemas.source_result import SourceResult
 from app.schemas.workflow import WorkflowDecision, WorkflowStage, WorkflowState
 from app.services.analysis_stage import PhaseCAnalysisStage
@@ -87,15 +88,30 @@ class RecordingSearch:
     def __init__(self, batches: Sequence[Sequence[SourceResult]]) -> None:
         self.batches = list(batches)
         self.calls: list[tuple[int, list[str]]] = []
+        self.histories: list[list[str]] = []
 
     def search(
-        self, *, goal: str, queries: Sequence[str], iteration: int
-    ) -> Sequence[SourceResult]:
-        del goal
-        self.calls.append((iteration, list(queries)))
+        self,
+        *,
+        mission_id: UUID,
+        goal: str,
+        missing_evidence: Sequence[str],
+        query_history: Sequence[str],
+        iteration: int,
+    ) -> SearchAgentOutput:
+        del mission_id
+        queries = list(missing_evidence) or [goal]
+        self.calls.append((iteration, queries))
+        self.histories.append(list(query_history))
         if iteration < len(self.batches):
-            return self.batches[iteration]
-        return []
+            sources = list(self.batches[iteration])
+        else:
+            sources = []
+        return SearchAgentOutput(
+            generated_queries=queries[:4],
+            retrieved_sources=sources,
+            notes="Scripted search plan.",
+        )
 
 
 class ScriptedEvidence:
@@ -164,9 +180,15 @@ class PlanningAction:
 
 class FailingSearch:
     def search(
-        self, *, goal: str, queries: Sequence[str], iteration: int
-    ) -> Sequence[SourceResult]:
-        del goal, queries, iteration
+        self,
+        *,
+        mission_id: UUID,
+        goal: str,
+        missing_evidence: Sequence[str],
+        query_history: Sequence[str],
+        iteration: int,
+    ) -> SearchAgentOutput:
+        del mission_id, goal, missing_evidence, query_history, iteration
         raise WorkflowStageError("The source provider is unavailable.")
 
 
@@ -230,6 +252,7 @@ def test_poc_ready_path_reaches_an_action_plan() -> None:
     assert result.iterations_used == 0
     assert [event.event_type for event in result.events] == [
         "workflow_started",
+        "queries_generated",
         "sources_retrieved",
         "evidence_extracted",
         "handoff_produced",
@@ -282,6 +305,14 @@ def test_research_required_reruns_search_within_the_iteration_limit() -> None:
     # Re-search rounds use the targeted queries, not the original goal.
     assert search.calls[1][1] == ["quantization latency benchmark"]
     assert search.calls[2][1] == ["quantization latency benchmark"]
+    assert search.histories == [
+        [],
+        ["Decide whether to invest in on-device inference."],
+        [
+            "Decide whether to invest in on-device inference.",
+            "quantization latency benchmark",
+        ],
+    ]
 
 
 def test_exhausted_budget_asks_analysis_once_more_without_searching_again() -> None:
@@ -392,7 +423,7 @@ def test_events_stream_to_the_sink_as_they_happen() -> None:
     assert seen == [event.event_type for event in result.events]
 
 
-def test_the_goal_seeds_the_first_search_when_no_queries_are_given() -> None:
+def test_the_goal_reaches_the_first_search_when_no_evidence_gap_is_given() -> None:
     search = RecordingSearch([])
     stages = build_stages(
         search=search, analysis=ScriptedAnalysis([make_poc_handoff()])

@@ -42,6 +42,7 @@ def test_default_stages_share_one_llm_client(session: Session) -> None:
 
     stages = default_stages(session, llm_client=client)
 
+    assert stages.search._agent._llm_client is client  # type: ignore[attr-defined]
     assert stages.evidence._agent._llm_client is client  # type: ignore[attr-defined]
     assert stages.analysis._adapter._llm_client is client  # type: ignore[attr-defined]
 
@@ -70,10 +71,15 @@ def test_events_carry_structured_metadata(session: Session) -> None:
     stored = AgentEventRepository(session).list_for_mission(mission_id)
     started = next(e for e in stored if e.event_type == "workflow_started")
     assert started.metadata_json == {"max_iterations": 1}
+    planned = next(e for e in stored if e.event_type == "queries_generated")
+    assert planned.metadata_json["iteration"] == 0
+    assert planned.metadata_json["query_count"] == 4
+    assert planned.metadata_json["queries"]
+    assert planned.metadata_json["notes"]
     retrieved = next(e for e in stored if e.event_type == "sources_retrieved")
     assert retrieved.metadata_json["iteration"] == 0
     assert retrieved.metadata_json["source_count"] > 0
-    assert retrieved.metadata_json["queries"]
+    assert retrieved.metadata_json["queries"] == planned.metadata_json["queries"]
     extracted = next(e for e in stored if e.event_type == "evidence_extracted")
     assert extracted.metadata_json["total_count"] > 0
 

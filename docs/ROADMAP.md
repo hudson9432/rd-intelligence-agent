@@ -8,7 +8,7 @@ Status values: `complete`, `in progress`, `next`, `planned`, `optional`.
 | 02 | complete | SQLite persistence, repositories, mission/event APIs |
 | 03 | complete | arXiv and GitHub tools, normalization, deduplication, mock sources |
 | 04 | complete | Provider-independent LLM client and deterministic mock LLM |
-| 05 | in progress | Search Agent |
+| 05 | complete | Search Agent |
 | 06 | in progress | Evidence Agent with strict provenance |
 | 07 | complete | Analyst Agent and deterministic opportunity scoring |
 | 08 | complete | Critic Agent, coverage scoring, targeted query output |
@@ -33,11 +33,13 @@ terminate the relevant workflow stage instead of being interpreted as missing
 research evidence. Configurable process-wide pacing lets every agent sharing a
 provider/model respect low requests-per-minute tiers.
 
-Phase 05 is in progress rather than complete: `ResearchSourceSearchStage`
-executes the mission's queries, merges, and drops sources already seen, but it
-authors no queries. Round one searches the goal and later rounds search what
-the Critic asked for, which `docs/PHASE_C_CONTRACT.md` assigns to Phase C.
-Whether a separate query-authoring agent is still wanted is an open question.
+Phase 05 now has a typed Search Agent. It uses the configured LLM only to plan
+at most four focused queries, applies deterministic normalization and exact
+history deduplication, and then delegates retrieval to the existing arXiv and
+GitHub tools. First-pass planning covers research, implementations, benchmarks,
+and adoption; later rounds turn Critic-supplied evidence gaps into targeted
+queries. Generated queries and notes are persisted through AgentEvents, while
+the workflow result retains the bounded query history.
 
 Phase 06 now deduplicates, filters, and persists: `PersistingEvidenceStage`
 stores each source, extracts against the mission goal, skips sources that fail

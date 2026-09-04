@@ -12,6 +12,7 @@ from app.repositories.evidence_card import EvidenceCardRepository
 from app.repositories.source_document import SourceDocumentRepository
 from app.schemas.llm import LLMCompletion, LLMMessage
 from app.schemas.research_mission import MissionStatus, ResearchMissionCreate
+from app.schemas.search_agent import SearchAgentOutput
 from app.schemas.source_result import SourceResult
 from app.services.evidence_stage import PersistingEvidenceStage
 from app.services.mission import MissionService
@@ -21,6 +22,7 @@ from app.services.workflow import WorkflowService
 GOAL = (
     "Decide whether retrieval augmented generation is reliable enough for our product."
 )
+SEARCH_MISSION_ID = UUID("11111111-1111-1111-1111-111111111111")
 
 
 class SequenceLLMClient(LLMClient):
@@ -57,6 +59,22 @@ def search_stage() -> ResearchSourceSearchStage:
     return ResearchSourceSearchStage(settings=mock_settings())
 
 
+def run_search(
+    stage: ResearchSourceSearchStage,
+    *,
+    iteration: int = 0,
+    missing_evidence: list[str] | None = None,
+    query_history: list[str] | None = None,
+) -> SearchAgentOutput:
+    return stage.search(
+        mission_id=SEARCH_MISSION_ID,
+        goal=GOAL,
+        missing_evidence=missing_evidence or [],
+        query_history=query_history or [],
+        iteration=iteration,
+    )
+
+
 def evidence_stage(session: Session) -> PersistingEvidenceStage:
     return PersistingEvidenceStage(session, llm_client=MockLLMClient())
 
@@ -83,11 +101,15 @@ def source(title: str, url: str) -> SourceResult:
 # ------------------------------------------------------------------- search
 
 
-def test_search_returns_sources_for_the_supplied_queries() -> None:
-    results = search_stage().search(goal=GOAL, queries=[GOAL], iteration=0)
+def test_search_plans_first_pass_queries_and_returns_sources() -> None:
+    output = run_search(search_stage())
 
-    assert results
-    assert {result.source_type for result in results} == {"arxiv", "github"}
+    assert len(output.generated_queries) == 4
+    assert output.retrieved_sources
+    assert {result.source_type for result in output.retrieved_sources} == {
+        "arxiv",
+        "github",
+    }
 
 
 def test_search_does_not_return_a_source_twice_across_rounds() -> None:
@@ -95,22 +117,40 @@ def test_search_does_not_return_a_source_twice_across_rounds() -> None:
 
     stage = search_stage()
 
-    first = stage.search(goal=GOAL, queries=[GOAL], iteration=0)
-    second = stage.search(goal=GOAL, queries=[GOAL], iteration=1)
+    first = run_search(stage)
+    second = run_search(
+        stage,
+        iteration=1,
+        missing_evidence=["RAG failure benchmarks"],
+        query_history=first.generated_queries,
+    )
 
-    assert first
+    assert first.retrieved_sources
+    assert second.generated_queries == ["RAG failure benchmarks"]
     # Mock replay ignores the query, so round two is entirely a repeat. That
     # is the documented offline limitation, and the stage must absorb it.
-    assert second == []
+    assert second.retrieved_sources == []
 
 
 def test_each_stage_instance_starts_with_no_memory() -> None:
     """Seen-source memory must not leak between missions."""
 
-    first = search_stage().search(goal=GOAL, queries=[GOAL], iteration=0)
-    second = search_stage().search(goal=GOAL, queries=[GOAL], iteration=0)
+    first = run_search(search_stage())
+    second = run_search(search_stage())
 
     assert first == second
+
+
+def test_search_planning_provider_failure_is_not_an_empty_search() -> None:
+    stage = ResearchSourceSearchStage(
+        settings=mock_settings(),
+        llm_client=FailingLLMClient(),
+    )
+
+    with pytest.raises(
+        WorkflowStageError, match="search-query provider request failed"
+    ):
+        run_search(stage)
 
 
 # ----------------------------------------------------------------- evidence
@@ -287,6 +327,8 @@ def test_a_mission_now_runs_from_goal_to_a_poc_candidate(session: Session) -> No
     assert result.status == "completed"
     assert result.handoff_status == "ready_for_poc", result.error
     assert result.evidence_count > 0
+    assert len(result.query_history) == 4
+    assert len({query.casefold() for query in result.query_history}) == 4
     assert result.poc_candidates
     assert result.decision is not None
     assert result.decision.recommendation == "proceed_with_poc"
@@ -308,6 +350,7 @@ def test_the_run_records_each_stage_as_an_event(session: Session) -> None:
     types = [event.event_type for event in result.events]
     assert types == [
         "workflow_started",
+        "queries_generated",
         "sources_retrieved",
         "evidence_extracted",
         "handoff_produced",

@@ -13,6 +13,7 @@ from app.schemas.research_mission import (
     ResearchMissionSummary,
     ResearchMissionUpdate,
 )
+from app.schemas.search_agent import SearchAgentInput, SearchAgentOutput, SearchQuery
 from app.schemas.source_document import SourceDocument, SourceDocumentCreate
 from app.schemas.source_result import (
     SourceError,
@@ -44,6 +45,9 @@ __all__ = [
     "ResearchMissionDetail",
     "ResearchMissionSummary",
     "ResearchMissionUpdate",
+    "SearchAgentInput",
+    "SearchAgentOutput",
+    "SearchQuery",
     "SourceDocument",
     "SourceDocumentCreate",
     "SourceError",

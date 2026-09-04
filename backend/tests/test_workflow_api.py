@@ -52,7 +52,9 @@ def test_run_reports_the_bounded_research_loop_in_events(client: TestClient) -> 
     body = client.post(f"/missions/{mission_id}/run").json()
 
     types = [event["event_type"] for event in body["events"]]
+    assert types.count("queries_generated") == body["iterations_used"] + 1
     assert types.count("sources_retrieved") == body["iterations_used"] + 1
+    assert body["query_history"]
     assert "research_budget_exhausted" in types
 
 

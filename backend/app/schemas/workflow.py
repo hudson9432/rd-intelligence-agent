@@ -75,6 +75,7 @@ class WorkflowState(BaseModel):
     research_exhausted: bool = False
 
     queries: list[str] = Field(default_factory=list)
+    query_history: list[str] = Field(default_factory=list)
     sources: list[SourceResult] = Field(default_factory=list)
     evidence: list[EvidenceCard] = Field(default_factory=list)
     handoff: PhaseCHandoff | None = None
@@ -106,6 +107,7 @@ class WorkflowRunResult(BaseModel):
     action_plan: ActionPlanCreate | None = None
     poc_candidates: list[PocCandidate] = Field(default_factory=list)
     evidence_count: int = Field(default=0, ge=0)
+    query_history: list[str] = Field(default_factory=list)
     events: list[WorkflowEvent] = Field(default_factory=list)
     error: str | None = None
 
