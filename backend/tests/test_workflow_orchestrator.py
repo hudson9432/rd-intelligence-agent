@@ -117,6 +117,7 @@ class ScriptedAnalysis:
     def __init__(self, handoffs: Sequence[PhaseCHandoff]) -> None:
         self.handoffs = list(handoffs)
         self.calls: list[bool] = []
+        self.seen_evidence: list[list[UUID]] = []
 
     def analyze(
         self,
@@ -125,9 +126,10 @@ class ScriptedAnalysis:
         evidence: Sequence[EvidenceCard],
         research_exhausted: bool,
     ) -> PhaseCHandoff:
-        del mission_goal, evidence
+        del mission_goal
         index = min(len(self.calls), len(self.handoffs) - 1)
         self.calls.append(research_exhausted)
+        self.seen_evidence.append([card.id for card in evidence])
         return self.handoffs[index]
 
 
@@ -324,18 +326,21 @@ def test_evidence_accumulates_across_rounds_without_duplicates() -> None:
             queries=["more"], reason="Need more."
         ),
     )
+    analysis = ScriptedAnalysis([research, make_poc_handoff()])
     stages = build_stages(
         search=RecordingSearch([[make_source("a")], [make_source("b")]]),
         # The second round re-returns the same card plus a new one.
         evidence=ScriptedEvidence([[shared], [shared, fresh]]),
-        analysis=ScriptedAnalysis([research, make_poc_handoff()]),
+        analysis=analysis,
         action=PlanningAction(),
     )
-    state = make_state(max_iterations=2)
 
-    WorkflowOrchestrator(stages).run(state)
+    result = WorkflowOrchestrator(stages).run(make_state(max_iterations=2))
 
-    assert [card.id for card in state.evidence] == [shared.id, fresh.id]
+    # LangGraph threads a new state through each node, so assert on what the
+    # analysis stage was actually handed rather than on the input object.
+    assert analysis.seen_evidence == [[shared.id], [shared.id, fresh.id]]
+    assert result.evidence_count == 2
 
 
 def test_a_failing_stage_ends_the_run_as_failed() -> None:
@@ -389,3 +394,46 @@ def test_max_iterations_is_bounded_by_the_schema() -> None:
         make_state(max_iterations=0)
     with pytest.raises(ValueError):
         make_state(max_iterations=6)
+
+
+def test_the_graph_exposes_one_node_per_stage() -> None:
+    """The graph is a real LangGraph, not a hand-rolled loop behind the name."""
+
+    graph = WorkflowOrchestrator(build_stages())._graph.get_graph()
+
+    assert {node for node in graph.nodes} == {
+        "__start__",
+        "__end__",
+        "search",
+        "evidence",
+        "analysis",
+        "decision",
+        "action",
+    }
+
+
+def test_the_longest_legal_path_fits_inside_the_recursion_limit() -> None:
+    """The step budget must cover the worst case the router can legally reach.
+
+    With `max_iterations=5` that is six search rounds, the final gate, the
+    decision, and the action plan. If the headroom were too small LangGraph
+    would raise `GraphRecursionError` before the loop bound applied.
+    """
+
+    research = PhaseCHandoff(
+        status="research_required",
+        reason="Thin.",
+        research_request=TargetedResearchRequest(
+            queries=["more"], reason="Need more."
+        ),
+    )
+    search = RecordingSearch([])
+    analysis = ScriptedAnalysis([research] * 6 + [make_poc_handoff()])
+    stages = build_stages(search=search, analysis=analysis, action=PlanningAction())
+
+    result = WorkflowOrchestrator(stages).run(make_state(max_iterations=5))
+
+    assert result.status == "completed"
+    assert result.iterations_used == 5
+    assert len(search.calls) == 6
+    assert result.action_plan is not None

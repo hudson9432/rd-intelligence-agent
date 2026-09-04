@@ -35,9 +35,14 @@ event persistence, and mission status are implemented and tested, while the
 five stages it drives are placeholders. It remains in progress until real
 stages replace them.
 
-That skeleton is plain typed Python rather than LangGraph. `AGENTS.md` requires
-that routing and iteration limits stay in deterministic code and that no
-framework is added while a small local abstraction is enough for the MVP. The
-node and router boundaries are shaped so a LangGraph runtime can wrap them
-without changing stage implementations; adopt the dependency when concurrent
-fan-out, checkpointing, or streaming resumption is actually needed.
+The graph runs on LangGraph (`langgraph==1.2.11`). This is a deliberate,
+recorded exception to the `AGENTS.md` rule against adding a framework while a
+small abstraction would do: the workflow is the product's core loop, and
+LangGraph's checkpointing, streaming, and concurrent fan-out are expected to be
+needed as real stages land.
+
+The other `AGENTS.md` rules still bind. Routing and the re-search bound stay in
+deterministic Python: routers are pure functions of state, the iteration limit
+is enforced inside the analysis node, and LangGraph's `recursion_limit` is only
+a backstop against a routing bug. Nodes sequence work and emit events; no
+scoring, parsing, or business rule lives in one.

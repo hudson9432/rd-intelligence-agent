@@ -1,27 +1,34 @@
-"""Deterministic mission workflow graph.
+"""Mission workflow graph, built on LangGraph.
 
     START -> Search -> Evidence -> Analysis
-                                   |- research_required -> bounded re-search
+                                   |- research_required  -> bounded re-search
                                    |- ready_for_poc      -> Decision -> Action
                                    `- no_viable_direction -> Decision -> END
 
 The orchestrator owns loop execution, iteration limits, routing, and event
 emission. It never touches the database and never calls an external service:
-stages are injected, so the same graph runs with mock, partial, or real
-implementations.
+stages are injected behind Protocols, so the same graph runs with mock,
+partial, or real implementations.
 
-Routing is plain typed Python rather than a graph framework. `AGENTS.md`
-requires that routing and iteration limits stay in deterministic code and that
-no framework is added while a small local abstraction is enough; the node and
-router boundaries below are shaped so a LangGraph runtime can wrap them later
-without changing stage implementations.
+Two rules from `AGENTS.md` shape how LangGraph is used here. Routing and
+iteration limits stay in deterministic Python — the routers are pure functions
+of state and the re-search bound is enforced in the analysis node, with
+LangGraph's `recursion_limit` only as a backstop. And orchestration stays thin:
+no scoring, parsing, or business rule lives in a node, only sequencing.
+
+A failing stage records the failure in state instead of raising, so the graph
+terminates through its normal edges and the state gathered so far survives.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
+
+from langchain_core.runnables import RunnableConfig
+from langgraph.errors import GraphRecursionError
+from langgraph.graph import END, START, StateGraph
 
 from app.schemas.action_plan import ActionPlanCreate
 from app.schemas.analysis import PhaseCHandoff
@@ -41,6 +48,14 @@ class WorkflowStageError(RuntimeError):
 
 
 EventSink = Callable[[WorkflowEvent], None]
+Emit = Callable[..., None]
+
+_EVENT_SINK_KEY = "workflow_event_sink"
+
+#: Nodes per re-search round (search, evidence, analysis), plus headroom for
+#: the final gate, decision, action, and LangGraph's own bookkeeping steps.
+_NODES_PER_ROUND = 3
+_RECURSION_HEADROOM = 8
 
 
 class SearchStage(Protocol):
@@ -110,6 +125,26 @@ class WorkflowStages:
         self.action = action
 
 
+def _emitter(config: RunnableConfig) -> Emit:
+    """Pull the run's event sink out of the LangGraph config.
+
+    The sink is per-run while the graph is compiled once, so it travels in
+    `configurable` rather than being closed over at build time.
+    """
+
+    return config["configurable"][_EVENT_SINK_KEY]
+
+
+def _failure(stage: WorkflowStage, error: Exception, emit: Emit) -> dict[str, Any]:
+    emit(
+        WorkflowOrchestrator.agent_name,
+        "workflow_failed",
+        f"Workflow stopped: {error}",
+        failed_stage=stage.value,
+    )
+    return {"error": str(error), "failed_stage": stage}
+
+
 class WorkflowOrchestrator:
     """Runs the mission graph to a terminal state."""
 
@@ -117,6 +152,48 @@ class WorkflowOrchestrator:
 
     def __init__(self, stages: WorkflowStages) -> None:
         self.stages = stages
+        self._graph = self._build()
+
+    # ------------------------------------------------------------------ graph
+
+    def _build(self) -> Any:
+        builder: StateGraph = StateGraph(WorkflowState)
+        builder.add_node(WorkflowStage.SEARCH.value, self._search)
+        builder.add_node(WorkflowStage.EVIDENCE.value, self._evidence)
+        builder.add_node(WorkflowStage.ANALYSIS.value, self._analysis)
+        builder.add_node(WorkflowStage.DECISION.value, self._decision)
+        builder.add_node(WorkflowStage.ACTION.value, self._action)
+
+        builder.add_edge(START, WorkflowStage.SEARCH.value)
+        builder.add_conditional_edges(
+            WorkflowStage.SEARCH.value,
+            _route_after_search,
+            {WorkflowStage.EVIDENCE.value: WorkflowStage.EVIDENCE.value, END: END},
+        )
+        builder.add_conditional_edges(
+            WorkflowStage.EVIDENCE.value,
+            _route_after_evidence,
+            {WorkflowStage.ANALYSIS.value: WorkflowStage.ANALYSIS.value, END: END},
+        )
+        builder.add_conditional_edges(
+            WorkflowStage.ANALYSIS.value,
+            _route_after_analysis,
+            {
+                WorkflowStage.SEARCH.value: WorkflowStage.SEARCH.value,
+                WorkflowStage.ANALYSIS.value: WorkflowStage.ANALYSIS.value,
+                WorkflowStage.DECISION.value: WorkflowStage.DECISION.value,
+                END: END,
+            },
+        )
+        builder.add_conditional_edges(
+            WorkflowStage.DECISION.value,
+            _route_after_decision,
+            {WorkflowStage.ACTION.value: WorkflowStage.ACTION.value, END: END},
+        )
+        builder.add_edge(WorkflowStage.ACTION.value, END)
+        return builder.compile()
+
+    # ------------------------------------------------------------------- run
 
     def run(
         self, state: WorkflowState, *, on_event: EventSink | None = None
@@ -124,10 +201,7 @@ class WorkflowOrchestrator:
         events: list[WorkflowEvent] = []
 
         def emit(
-            agent_name: str,
-            event_type: str,
-            message: str,
-            **metadata: object,
+            agent_name: str, event_type: str, message: str, **metadata: object
         ) -> None:
             event = WorkflowEvent(
                 agent_name=agent_name,
@@ -149,79 +223,83 @@ class WorkflowOrchestrator:
             max_iterations=state.max_iterations,
         )
 
-        stage = WorkflowStage.SEARCH
+        config: RunnableConfig = {
+            "configurable": {_EVENT_SINK_KEY: emit},
+            "recursion_limit": _NODES_PER_ROUND * (state.max_iterations + 1)
+            + _RECURSION_HEADROOM,
+        }
+
         try:
-            while stage is not WorkflowStage.DONE:
-                stage = self._step(stage, state, emit)
-        except WorkflowStageError as error:
+            raw = self._graph.invoke(state, config=config)
+            final = WorkflowState.model_validate(raw)
+        except GraphRecursionError as error:
+            # The in-node iteration bound should always trip first; this is the
+            # backstop that keeps a routing bug from running forever.
             emit(
                 self.agent_name,
                 "workflow_failed",
                 f"Workflow stopped: {error}",
-                failed_stage=stage.value,
+                failed_stage=WorkflowStage.ANALYSIS.value,
             )
             return WorkflowRunResult(
                 mission_id=state.mission_id,
                 status="failed",
-                final_stage=stage,
-                iterations_used=state.iteration,
-                handoff_status=state.handoff.status if state.handoff else None,
-                decision=state.decision,
+                final_stage=WorkflowStage.ANALYSIS,
+                iterations_used=state.max_iterations,
                 events=events,
-                error=str(error),
+                error=f"The workflow graph exceeded its step limit: {error}",
+            )
+
+        if final.error is not None:
+            return WorkflowRunResult(
+                mission_id=final.mission_id,
+                status="failed",
+                final_stage=final.failed_stage or WorkflowStage.DONE,
+                iterations_used=final.iteration,
+                handoff_status=final.handoff.status if final.handoff else None,
+                decision=final.decision,
+                events=events,
+                error=final.error,
             )
 
         emit(
             self.agent_name,
             "workflow_completed",
             "Workflow reached a terminal state.",
-            iterations_used=state.iteration,
-            handoff_status=state.handoff.status if state.handoff else None,
+            iterations_used=final.iteration,
+            handoff_status=final.handoff.status if final.handoff else None,
         )
 
         return WorkflowRunResult(
-            mission_id=state.mission_id,
+            mission_id=final.mission_id,
             status="completed",
             final_stage=WorkflowStage.DONE,
-            iterations_used=state.iteration,
-            handoff_status=state.handoff.status if state.handoff else None,
-            decision=state.decision,
-            action_plan=state.action_plan,
-            poc_candidates=list(state.handoff.poc_candidates) if state.handoff else [],
+            iterations_used=final.iteration,
+            handoff_status=final.handoff.status if final.handoff else None,
+            decision=final.decision,
+            action_plan=final.action_plan,
+            poc_candidates=list(final.handoff.poc_candidates) if final.handoff else [],
+            evidence_count=len(final.evidence),
             events=events,
         )
 
-    def _step(
-        self,
-        stage: WorkflowStage,
-        state: WorkflowState,
-        emit: Callable[..., None],
-    ) -> WorkflowStage:
-        match stage:
-            case WorkflowStage.SEARCH:
-                return self._search(state, emit)
-            case WorkflowStage.EVIDENCE:
-                return self._evidence(state, emit)
-            case WorkflowStage.ANALYSIS:
-                return self._analysis(state, emit)
-            case WorkflowStage.DECISION:
-                return self._decision(state, emit)
-            case WorkflowStage.ACTION:
-                return self._action(state, emit)
-            case _:  # pragma: no cover - the loop exits on DONE
-                raise WorkflowStageError(f"Unroutable stage: {stage}")
+    # ----------------------------------------------------------------- nodes
 
     def _search(
-        self, state: WorkflowState, emit: Callable[..., None]
-    ) -> WorkflowStage:
-        found = list(
-            self.stages.search.search(
-                goal=state.goal,
-                queries=list(state.queries),
-                iteration=state.iteration,
+        self, state: WorkflowState, config: RunnableConfig
+    ) -> dict[str, Any]:
+        emit = _emitter(config)
+        try:
+            found = list(
+                self.stages.search.search(
+                    goal=state.goal,
+                    queries=list(state.queries),
+                    iteration=state.iteration,
+                )
             )
-        )
-        state.sources = found
+        except WorkflowStageError as error:
+            return _failure(WorkflowStage.SEARCH, error, emit)
+
         emit(
             "search",
             "sources_retrieved",
@@ -230,40 +308,49 @@ class WorkflowOrchestrator:
             queries=list(state.queries),
             source_count=len(found),
         )
-        return WorkflowStage.EVIDENCE
+        return {"sources": found}
 
     def _evidence(
-        self, state: WorkflowState, emit: Callable[..., None]
-    ) -> WorkflowStage:
-        extracted = list(
-            self.stages.evidence.extract(
-                mission_id=state.mission_id, sources=state.sources
+        self, state: WorkflowState, config: RunnableConfig
+    ) -> dict[str, Any]:
+        emit = _emitter(config)
+        try:
+            extracted = list(
+                self.stages.evidence.extract(
+                    mission_id=state.mission_id, sources=state.sources
+                )
             )
-        )
+        except WorkflowStageError as error:
+            return _failure(WorkflowStage.EVIDENCE, error, emit)
+
         # Re-search adds to the evidence pool rather than replacing it, so a
         # later round is judged on everything gathered so far.
         known = {card.id for card in state.evidence}
-        state.evidence.extend(card for card in extracted if card.id not in known)
+        merged = [*state.evidence, *(c for c in extracted if c.id not in known)]
         emit(
             "evidence",
             "evidence_extracted",
             f"Extracted {len(extracted)} evidence card(s); "
-            f"{len(state.evidence)} held in total.",
+            f"{len(merged)} held in total.",
             iteration=state.iteration,
             extracted_count=len(extracted),
-            total_count=len(state.evidence),
+            total_count=len(merged),
         )
-        return WorkflowStage.ANALYSIS
+        return {"evidence": merged}
 
     def _analysis(
-        self, state: WorkflowState, emit: Callable[..., None]
-    ) -> WorkflowStage:
-        handoff = self.stages.analysis.analyze(
-            mission_goal=state.goal,
-            evidence=list(state.evidence),
-            research_exhausted=state.research_exhausted,
-        )
-        state.handoff = handoff
+        self, state: WorkflowState, config: RunnableConfig
+    ) -> dict[str, Any]:
+        emit = _emitter(config)
+        try:
+            handoff = self.stages.analysis.analyze(
+                mission_goal=state.goal,
+                evidence=list(state.evidence),
+                research_exhausted=state.research_exhausted,
+            )
+        except WorkflowStageError as error:
+            return _failure(WorkflowStage.ANALYSIS, error, emit)
+
         emit(
             "analysis",
             "handoff_produced",
@@ -272,25 +359,33 @@ class WorkflowOrchestrator:
             handoff_status=handoff.status,
             poc_candidate_count=len(handoff.poc_candidates),
         )
+        update: dict[str, Any] = {"handoff": handoff}
 
         if handoff.status != "research_required":
-            return WorkflowStage.DECISION
+            return update
 
         request = handoff.research_request
         if request is None:  # pragma: no cover - forbidden by PhaseCHandoff
-            raise WorkflowStageError(
-                "A research-required handoff arrived without a research request."
+            return update | _failure(
+                WorkflowStage.ANALYSIS,
+                WorkflowStageError(
+                    "A research-required handoff arrived without a research request."
+                ),
+                emit,
             )
 
         if state.research_exhausted:
             # The budget was already spent and the gate still asks for more, so
             # the loop would not terminate. Fail loudly instead of spinning.
-            raise WorkflowStageError(
-                "Analysis requested more research after the budget was exhausted."
+            return update | _failure(
+                WorkflowStage.ANALYSIS,
+                WorkflowStageError(
+                    "Analysis requested more research after the budget was exhausted."
+                ),
+                emit,
             )
 
         if state.iteration >= state.max_iterations:
-            state.research_exhausted = True
             emit(
                 self.agent_name,
                 "research_budget_exhausted",
@@ -299,32 +394,41 @@ class WorkflowOrchestrator:
                 iteration=state.iteration,
                 max_iterations=state.max_iterations,
             )
-            return WorkflowStage.ANALYSIS
+            return update | {"research_exhausted": True}
 
-        state.iteration += 1
-        state.queries = list(request.queries)
         emit(
             self.agent_name,
             "targeted_research_started",
-            f"Re-search round {state.iteration} of {state.max_iterations}: "
+            f"Re-search round {state.iteration + 1} of {state.max_iterations}: "
             f"{request.reason}",
-            iteration=state.iteration,
+            iteration=state.iteration + 1,
             queries=list(request.queries),
             direction_ids=list(request.direction_ids),
             claim_ids=list(request.claim_ids),
         )
-        return WorkflowStage.SEARCH
+        return update | {
+            "iteration": state.iteration + 1,
+            "queries": list(request.queries),
+        }
 
     def _decision(
-        self, state: WorkflowState, emit: Callable[..., None]
-    ) -> WorkflowStage:
-        if state.handoff is None:  # pragma: no cover - unreachable via _analysis
-            raise WorkflowStageError("Decision reached without an analysis handoff.")
+        self, state: WorkflowState, config: RunnableConfig
+    ) -> dict[str, Any]:
+        emit = _emitter(config)
+        if state.handoff is None:  # pragma: no cover - unreachable via routing
+            return _failure(
+                WorkflowStage.DECISION,
+                WorkflowStageError("Decision reached without an analysis handoff."),
+                emit,
+            )
 
-        decision = self.stages.decision.decide(
-            mission_goal=state.goal, handoff=state.handoff
-        )
-        state.decision = decision
+        try:
+            decision = self.stages.decision.decide(
+                mission_goal=state.goal, handoff=state.handoff
+            )
+        except WorkflowStageError as error:
+            return _failure(WorkflowStage.DECISION, error, emit)
+
         emit(
             "decision",
             "decision_made",
@@ -332,23 +436,26 @@ class WorkflowOrchestrator:
             recommendation=decision.recommendation,
             selected_direction_id=decision.selected_direction_id,
         )
+        return {"decision": decision}
 
-        if decision.recommendation != "proceed_with_poc":
-            return WorkflowStage.DONE
-        return WorkflowStage.ACTION
-
-    def _action(
-        self, state: WorkflowState, emit: Callable[..., None]
-    ) -> WorkflowStage:
+    def _action(self, state: WorkflowState, config: RunnableConfig) -> dict[str, Any]:
+        emit = _emitter(config)
         if state.handoff is None or state.decision is None:  # pragma: no cover
-            raise WorkflowStageError("Action reached without a decision.")
+            return _failure(
+                WorkflowStage.ACTION,
+                WorkflowStageError("Action reached without a decision."),
+                emit,
+            )
 
-        plan = self.stages.action.plan(
-            mission_id=state.mission_id,
-            handoff=state.handoff,
-            decision=state.decision,
-        )
-        state.action_plan = plan
+        try:
+            plan = self.stages.action.plan(
+                mission_id=state.mission_id,
+                handoff=state.handoff,
+                decision=state.decision,
+            )
+        except WorkflowStageError as error:
+            return _failure(WorkflowStage.ACTION, error, emit)
+
         if plan is None:
             emit(
                 "action",
@@ -356,12 +463,45 @@ class WorkflowOrchestrator:
                 "No PoC task plan was produced for the selected direction.",
                 selected_direction_id=state.decision.selected_direction_id,
             )
-        else:
-            emit(
-                "action",
-                "action_plan_created",
-                f"PoC plan '{plan.title}' with {len(plan.tasks_json)} task(s).",
-                task_count=len(plan.tasks_json),
-                estimated_effort=plan.estimated_effort,
-            )
-        return WorkflowStage.DONE
+            return {}
+
+        emit(
+            "action",
+            "action_plan_created",
+            f"PoC plan '{plan.title}' with {len(plan.tasks_json)} task(s).",
+            task_count=len(plan.tasks_json),
+            estimated_effort=plan.estimated_effort,
+        )
+        return {"action_plan": plan}
+
+
+# --------------------------------------------------------------------- routers
+# Pure functions of state: every side effect and state change happens in a node.
+
+
+def _route_after_search(state: WorkflowState) -> str:
+    return END if state.error else WorkflowStage.EVIDENCE.value
+
+
+def _route_after_evidence(state: WorkflowState) -> str:
+    return END if state.error else WorkflowStage.ANALYSIS.value
+
+
+def _route_after_analysis(state: WorkflowState) -> str:
+    if state.error or state.handoff is None:
+        return END
+    if state.handoff.status != "research_required":
+        return WorkflowStage.DECISION.value
+    # The node has already applied the bound: once it flags the budget as
+    # exhausted, the gate is asked once more instead of searching again.
+    if state.research_exhausted:
+        return WorkflowStage.ANALYSIS.value
+    return WorkflowStage.SEARCH.value
+
+
+def _route_after_decision(state: WorkflowState) -> str:
+    if state.error or state.decision is None:
+        return END
+    if state.decision.recommendation != "proceed_with_poc":
+        return END
+    return WorkflowStage.ACTION.value

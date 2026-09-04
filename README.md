@@ -177,8 +177,10 @@ curl -X POST http://localhost:8000/missions/{mission_id}/run
 curl http://localhost:8000/missions/{mission_id}/events
 ```
 
-The graph, its bounded re-search loop, and its event stream are real. The
-stages behind it are not all built: an unimplemented phase returns an empty
+The graph runs on LangGraph; routing and the re-search bound stay in
+deterministic Python, with LangGraph's step limit only as a backstop. The
+graph, its loop, and its event stream are real. The stages behind it are not
+all built: an unimplemented phase returns an empty
 result rather than invented data, so a run with the default stage set
 truthfully ends at `no_viable_direction`. Replace a stage as its phase lands;
 see `backend/app/agents/pending_stages.py`.
@@ -224,9 +226,9 @@ used to assist with scaffolding, implementation, tests, documentation, and
 repository operations. All changes remain visible in Git history.
 
 Current third-party foundations include Python, FastAPI, Pydantic, SQLAlchemy,
-SQLite, Next.js, React, TypeScript, arXiv, GitHub, and their locked package
-dependencies. Live model providers, datasets, generated media, and sponsor
-tools must be added to this disclosure when introduced.
+SQLite, LangGraph, Next.js, React, TypeScript, arXiv, GitHub, and their locked
+package dependencies. Live model providers, datasets, generated media, and
+sponsor tools must be added to this disclosure when introduced.
 
 ## License
 

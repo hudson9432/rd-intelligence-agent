@@ -81,6 +81,16 @@ class WorkflowState(BaseModel):
     decision: WorkflowDecision | None = None
     action_plan: ActionPlanCreate | None = None
 
+    error: str | None = None
+    """Set by a node when its stage fails. The routers send it straight to END.
+
+    A failing stage records the failure in state rather than raising, so the
+    graph terminates through its normal edges and the accumulated state stays
+    available instead of being lost with the exception.
+    """
+
+    failed_stage: WorkflowStage | None = None
+
 
 class WorkflowRunResult(BaseModel):
     """Terminal summary of one workflow run."""
@@ -95,5 +105,6 @@ class WorkflowRunResult(BaseModel):
     decision: WorkflowDecision | None = None
     action_plan: ActionPlanCreate | None = None
     poc_candidates: list[PocCandidate] = Field(default_factory=list)
+    evidence_count: int = Field(default=0, ge=0)
     events: list[WorkflowEvent] = Field(default_factory=list)
     error: str | None = None
