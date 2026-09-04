@@ -3,6 +3,7 @@
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.llm import MockLLMClient
 from app.db.session import create_database_engine, create_session_factory, init_db
 from app.repositories.action_plan import ActionPlanRepository
 from app.repositories.agent_event import AgentEventRepository
@@ -11,6 +12,7 @@ from app.services.mission import MissionNotFoundError, MissionService
 from app.services.workflow import (
     WorkflowAlreadyRunningError,
     WorkflowService,
+    default_stages,
     run_workflow_in_background,
 )
 from tests.test_workflow_orchestrator import (
@@ -33,6 +35,15 @@ def create_mission(session: Session) -> str:
         )
     )
     return mission.id
+
+
+def test_default_stages_share_one_llm_client(session: Session) -> None:
+    client = MockLLMClient()
+
+    stages = default_stages(session, llm_client=client)
+
+    assert stages.evidence._agent._llm_client is client  # type: ignore[attr-defined]
+    assert stages.analysis._adapter._llm_client is client  # type: ignore[attr-defined]
 
 
 def test_run_persists_every_event_and_completes_the_mission(session: Session) -> None:

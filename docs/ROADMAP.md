@@ -30,7 +30,8 @@ Phase 04 includes a typed structured-completion helper. OpenAI-compatible
 structured calls request JSON object mode, tolerate one Markdown JSON fence,
 and validate against the caller's Pydantic contract. Schema and provider errors
 terminate the relevant workflow stage instead of being interpreted as missing
-research evidence.
+research evidence. Configurable process-wide pacing lets every agent sharing a
+provider/model respect low requests-per-minute tiers.
 
 Phase 05 is in progress rather than complete: `ResearchSourceSearchStage`
 executes the mission's queries, merges, and drops sources already seen, but it

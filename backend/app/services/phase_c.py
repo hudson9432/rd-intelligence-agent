@@ -168,7 +168,7 @@ def _evaluate_claims(
     }
     unknown_keys = set(review_by_key) - valid_keys
     if unknown_keys:
-        direction_id, claim_id = sorted(unknown_keys)[0]
+        direction_id, claim_id = min(unknown_keys)
         raise ValueError(
             f"Claim review references an unknown claim: {direction_id}/{claim_id}"
         )

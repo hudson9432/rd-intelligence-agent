@@ -148,6 +148,7 @@ the populated `.env` file or API keys.
 | `LLM_BASE_URL` | OpenAI-compatible API base URL, normally ending in `/v1` | empty |
 | `LLM_API_KEY` | Secret provider credential | empty |
 | `LLM_MODEL` | Provider model name | empty |
+| `LLM_MIN_REQUEST_INTERVAL_SECONDS` | Process-wide pacing for one provider/model | `0` |
 | `MOCK_LLM` | Use the deterministic, offline LLM client | `true` |
 | `GITHUB_TOKEN` | Optional GitHub API credential for higher rate limits | empty |
 | `MOCK_EXTERNAL_APIS` | Replay deterministic arXiv/GitHub fixtures | `true` |
@@ -215,6 +216,7 @@ MOCK_LLM=false
 LLM_BASE_URL=https://your-openai-compatible-provider.example/v1
 LLM_API_KEY=your-secret-key
 LLM_MODEL=your-model-name
+LLM_MIN_REQUEST_INTERVAL_SECONDS=0
 ```
 
 The provider must support the Chat Completions endpoint and JSON object response
@@ -222,6 +224,17 @@ mode. Structured calls send `response_format: {"type":"json_object"}` and then
 validate the response against the relevant Pydantic contract. A response wrapped
 in a single Markdown `json` fence is accepted; prose or a schema mismatch fails
 the workflow instead of silently becoming `no_viable_direction`.
+
+For Gemini through Google's OpenAI compatibility endpoint, this configuration
+has been exercised end to end:
+
+```dotenv
+MOCK_LLM=false
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+LLM_API_KEY=your-gemini-api-key
+LLM_MODEL=gemini-3.1-flash-lite
+LLM_MIN_REQUEST_INTERVAL_SECONDS=4.2
+```
 
 Evidence snippets must still come from the source. Provenance matching tolerates
 Unicode normalization and whitespace-only changes, but rejects paraphrases,
@@ -233,6 +246,11 @@ direction exists.
 sources are frozen responses previously captured from the real arXiv and GitHub
 APIs, while Evidence/Analyst/Critic cognition comes from the configured model.
 Set `MOCK_EXTERNAL_APIS=false` as well to query both source APIs live.
+
+Free-tier providers often impose a low requests-per-minute quota. Set
+`LLM_MIN_REQUEST_INTERVAL_SECONDS=4.2` for a 15 RPM quota. The limiter is shared
+by Evidence, Analyst, and Critic clients in the process, including retry
+attempts; paid tiers can leave it at `0`.
 
 ## Current placeholders
 

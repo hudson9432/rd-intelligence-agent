@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import WorkflowOrchestrator, WorkflowStages
 from app.agents.pending_stages import PendingActionStage, PendingDecisionStage
-from app.core.config import Settings
-from app.core.llm import LLMClient
+from app.core.config import Settings, get_settings
+from app.core.llm import LLMClient, get_llm_client
 from app.repositories.action_plan import ActionPlanRepository
 from app.repositories.agent_event import AgentEventRepository
 from app.schemas.agent_event import AgentEventCreate
@@ -56,12 +56,20 @@ def default_stages(
     run has already seen, which must not leak between missions.
     """
 
+    resolved_settings = settings or get_settings()
+    shared_llm_client = llm_client or get_llm_client(resolved_settings)
+
     return WorkflowStages(
-        search=ResearchSourceSearchStage(settings=settings),
+        search=ResearchSourceSearchStage(settings=resolved_settings),
         evidence=PersistingEvidenceStage(
-            session, llm_client=llm_client, settings=settings
+            session,
+            llm_client=shared_llm_client,
+            settings=resolved_settings,
         ),
-        analysis=PhaseCAnalysisStage(llm_client, settings=settings),
+        analysis=PhaseCAnalysisStage(
+            shared_llm_client,
+            settings=resolved_settings,
+        ),
         decision=PendingDecisionStage(),
         action=PendingActionStage(),
     )

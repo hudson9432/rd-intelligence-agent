@@ -116,6 +116,8 @@ generate or classify content but must not silently own business rules.
 5. External calls require timeouts, bounded retries, and graceful failure.
    Provider or structured-output failures must remain distinguishable from a
    genuine evidence-backed `no_viable_direction` outcome.
+   Provider rate limits apply across agents sharing the same provider/model;
+   configure process-wide request pacing for low-RPM tiers.
 6. Research loops must have explicit iteration/query limits.
 7. Demo and test modes must be deterministic and make no real external calls.
 8. Calendar or other side effects require explicit user approval before

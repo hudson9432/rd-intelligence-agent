@@ -1,6 +1,7 @@
 """Tests for the provider-independent LLM client."""
 
 import json
+import time
 
 import httpx2 as httpx
 import pytest
@@ -158,6 +159,39 @@ def test_openai_compatible_client_retries_then_succeeds() -> None:
 
     assert completion.content == "ok"
     assert attempts["count"] == 2
+
+
+def test_openai_compatible_clients_share_configured_request_pacing() -> None:
+    request_times: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        request_times.append(time.monotonic())
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "ok"}}]},
+        )
+
+    transport = httpx.MockTransport(handler)
+    first = OpenAICompatibleLLMClient(
+        base_url="https://paced.example.test/v1",
+        api_key="sk-test",
+        model="paced-model",
+        min_request_interval_seconds=0.02,
+        transport=transport,
+    )
+    second = OpenAICompatibleLLMClient(
+        base_url="https://paced.example.test/v1",
+        api_key="sk-test",
+        model="paced-model",
+        min_request_interval_seconds=0.02,
+        transport=transport,
+    )
+
+    first.complete(_messages())
+    second.complete(_messages())
+
+    assert request_times[1] - request_times[0] >= 0.018
 
 
 @pytest.mark.parametrize(

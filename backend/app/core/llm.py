@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import re
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from dataclasses import dataclass, field
+from threading import Lock
 from typing import TypeVar
 
 import httpx2 as httpx
@@ -23,6 +26,33 @@ _JSON_FENCE = re.compile(
     r"\A```(?:json)?\s*(?P<payload>.*?)\s*```\Z",
     flags=re.IGNORECASE | re.DOTALL,
 )
+
+
+@dataclass
+class _RequestPacer:
+    """Process-local request pacing shared by clients for one provider/model."""
+
+    lock: Lock = field(default_factory=Lock)
+    next_request_at: float = 0
+
+    def wait(self, interval_seconds: float) -> None:
+        if interval_seconds <= 0:
+            return
+        with self.lock:
+            delay = self.next_request_at - time.monotonic()
+            if delay > 0:
+                time.sleep(delay)
+            self.next_request_at = time.monotonic() + interval_seconds
+
+
+_PACERS: dict[tuple[str, str], _RequestPacer] = {}
+_PACERS_LOCK = Lock()
+
+
+def _shared_pacer(base_url: str, model: str) -> _RequestPacer:
+    key = (base_url, model)
+    with _PACERS_LOCK:
+        return _PACERS.setdefault(key, _RequestPacer())
 
 
 class _ProviderMessage(BaseModel):
@@ -126,12 +156,15 @@ class OpenAICompatibleLLMClient(LLMClient):
         base_url: str,
         api_key: str,
         model: str,
+        min_request_interval_seconds: float = 0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._model = model
+        self._min_request_interval_seconds = min_request_interval_seconds
         self._transport = transport
+        self._pacer = _shared_pacer(self._base_url, self._model)
 
     def complete(self, messages: list[LLMMessage]) -> LLMCompletion:
         return self._request(messages)
@@ -162,6 +195,7 @@ class OpenAICompatibleLLMClient(LLMClient):
         ) as client:
             for _ in range(MAX_ATTEMPTS):
                 try:
+                    self._pacer.wait(self._min_request_interval_seconds)
                     response = client.post(
                         f"{self._base_url}/chat/completions",
                         json=payload,
@@ -223,4 +257,5 @@ def get_llm_client(settings: Settings) -> LLMClient:
         base_url=settings.llm_base_url,
         api_key=api_key,
         model=settings.llm_model,
+        min_request_interval_seconds=settings.llm_min_request_interval_seconds,
     )
