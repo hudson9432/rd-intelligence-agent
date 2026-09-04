@@ -1,7 +1,22 @@
+"use client";
+
+import { FormEvent, useEffect, useState } from "react";
 import { EmptyMissions } from "@/components/EmptyMissions";
 import styles from "./page.module.css";
 
 const workflow = ["Research", "Evidence", "Evaluate", "Decide", "Act"];
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+
+type MissionStatus = "created" | "running" | "completed" | "failed";
+
+type ResearchMission = {
+  id: string;
+  title: string;
+  goal: string;
+  status: MissionStatus;
+  created_at: string;
+  updated_at: string;
+};
 
 const overview = [
   { label: "Active missions", value: "0", detail: "No missions running" },
@@ -10,6 +25,65 @@ const overview = [
 ];
 
 export default function Home() {
+  const [missions, setMissions] = useState<ResearchMission[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadMissions() {
+      try {
+        const response = await fetch(`${apiBaseUrl}/missions`);
+        if (!response.ok) {
+          throw new Error("Unable to load missions.");
+        }
+        setMissions(await response.json());
+      } catch {
+        setError("Backend is unavailable. Start the API and refresh this page.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    void loadMissions();
+  }, []);
+
+  async function createMission(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+
+    const formData = new FormData(event.currentTarget);
+    const payload = {
+      title: String(formData.get("title") ?? "").trim(),
+      goal: String(formData.get("goal") ?? "").trim(),
+    };
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/missions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error("Unable to create mission.");
+      }
+      const mission: ResearchMission = await response.json();
+      setMissions((currentMissions) => [mission, ...currentMissions]);
+      event.currentTarget.reset();
+      setIsFormOpen(false);
+    } catch {
+      setError("Mission could not be created. Check that the backend is running.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  const activeMissionCount = missions.filter(
+    (mission) => mission.status === "running",
+  ).length;
+
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -44,16 +118,31 @@ export default function Home() {
             <button
               className={styles.primaryButton}
               type="button"
-              disabled
-              title="Mission creation will be enabled in the frontend workflow phase."
+              onClick={() => setIsFormOpen((isOpen) => !isOpen)}
             >
               <span aria-hidden="true">＋</span>
-              New Research Mission
+              {isFormOpen ? "Close Form" : "New Research Mission"}
             </button>
             <span className={styles.buttonNote}>
-              Mission API ready · dashboard integration is planned.
+              Mission API connected · create your first research mission.
             </span>
           </div>
+          {isFormOpen && (
+            <form className={styles.missionForm} onSubmit={createMission}>
+              <label>
+                Mission title
+                <input name="title" required maxLength={200} placeholder="e.g. Evaluate multimodal RAG" />
+              </label>
+              <label>
+                Research goal
+                <textarea name="goal" required placeholder="What should the team investigate?" />
+              </label>
+              <button className={styles.submitButton} type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : "Create Mission"}
+              </button>
+            </form>
+          )}
+          {error && <p className={styles.errorMessage}>{error}</p>}
         </div>
 
         <aside
@@ -87,11 +176,11 @@ export default function Home() {
       </section>
 
       <section className={styles.overview} aria-label="Workspace overview">
-        {overview.map((item) => (
+        {overview.map((item, index) => (
           <article className={styles.overviewItem} key={item.label}>
             <p>{item.label}</p>
-            <strong>{item.value}</strong>
-            <span>{item.detail}</span>
+            <strong>{index === 0 ? activeMissionCount : index === 1 ? missions.length : item.value}</strong>
+            <span>{index === 0 && activeMissionCount === 0 ? "No missions running" : item.detail}</span>
           </article>
         ))}
       </section>
@@ -106,10 +195,24 @@ export default function Home() {
             <p className={styles.sectionLabel}>Workspace</p>
             <h2 id="recent-missions-title">Recent missions</h2>
           </div>
-          <span>0 missions</span>
+          <span>{isLoading ? "Loading..." : `${missions.length} missions`}</span>
         </div>
         <div className={styles.missionSurface}>
-          <EmptyMissions />
+          {missions.length === 0 && !isLoading ? (
+            <EmptyMissions />
+          ) : (
+            <div className={styles.missionList}>
+              {missions.map((mission) => (
+                <article className={styles.missionItem} key={mission.id}>
+                  <div>
+                    <h3>{mission.title}</h3>
+                    <p>{mission.goal}</p>
+                  </div>
+                  <span className={styles.missionStatus}>{mission.status}</span>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
       </section>
     </main>
