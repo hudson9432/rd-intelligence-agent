@@ -11,6 +11,7 @@ from app.schemas import (
     EvidenceCardCreate,
     ResearchMissionCreate,
     SourceResult,
+    SourceSearchRequest,
     TechnologyOpportunityCreate,
 )
 
@@ -53,10 +54,15 @@ def test_opportunity_scores_are_bounded() -> None:
 
 
 def test_api_key_is_stored_as_secret() -> None:
-    settings = Settings(llm_api_key="not-a-real-secret")
+    settings = Settings(
+        llm_api_key="not-a-real-secret",
+        github_token="not-a-real-github-token",
+    )
 
     assert isinstance(settings.llm_api_key, SecretStr)
+    assert isinstance(settings.github_token, SecretStr)
     assert "not-a-real-secret" not in repr(settings)
+    assert "not-a-real-github-token" not in repr(settings)
 
 
 def test_source_result_uses_provider_neutral_fields_and_utc_time() -> None:
@@ -88,3 +94,16 @@ def test_source_result_rejects_naive_published_time() -> None:
             url="https://github.com/example/agent",
             published_at=naive_time,
         )
+
+
+def test_source_search_request_normalizes_query_and_date() -> None:
+    request = SourceSearchRequest(
+        query="  computer-use agents  ",
+        sources=["github"],
+        max_results_per_source=3,
+        published_after="2026-09-04T12:00:00+08:00",
+    )
+
+    assert request.query == "computer-use agents"
+    assert request.sources == ["github"]
+    assert request.published_after == datetime(2026, 9, 4, 4, tzinfo=UTC)

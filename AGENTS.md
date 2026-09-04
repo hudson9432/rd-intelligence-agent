@@ -42,10 +42,20 @@ Phases 1–2 (repository foundation and persistence) are complete:
   action.
 - Tests, pinned direct dependencies, and offline-compatible frontend build.
 
-Source integrations, the complete Evidence persistence/event pipeline, other
-agents, LangGraph orchestration, and demo fixtures are not implemented yet. The
-LLM and Evidence foundations are not wired into a public workflow. Do not claim
-that these partial components are an end-to-end feature.
+Phase 3 research-source tools are implemented:
+
+- `SourceResult`/`SourceError` schemas and `POST /research/search`.
+- `search_arxiv()` and `search_github()` tools with bounded timeout/retry and
+  graceful rate-limit handling (`app/tools/http.py`).
+- Normalized-URL and content-hash deduplication (`app/tools/dedupe.py`).
+- `MOCK_EXTERNAL_APIS` fixture mode (`demo/fixtures/`) that replays real,
+  frozen arXiv/GitHub responses through the live parsers. Mock responses are
+  deterministic and honor source selection, per-source limits, and date filters.
+
+The complete Evidence persistence/event pipeline, Search and other agents,
+LangGraph orchestration, and an end-to-end demo are not implemented yet. The
+source, LLM, and Evidence components are not wired into a public mission
+workflow. Do not claim that these partial components form an end-to-end feature.
 
 Check [docs/ROADMAP.md](docs/ROADMAP.md) before starting work and update it only
 when a phase is genuinely complete.
@@ -152,6 +162,7 @@ A change is complete only when:
 
 ## Recommended task order
 
-Follow the numbered roadmap. The next implementation phase is **03 — arXiv and
-GitHub research-source tools**. Calendar integration remains optional and
-should be done only after the core research-to-action loop is reliable.
+Follow the numbered roadmap. Complete the in-progress LLM/Evidence foundations
+before wiring the Search Agent and orchestrator. Calendar integration remains
+optional and should be done only after the core research-to-action loop is
+reliable.
