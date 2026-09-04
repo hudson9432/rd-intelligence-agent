@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Sequence
 from typing import Protocol
 from uuid import UUID
@@ -24,6 +25,8 @@ from app.services.scoring import (
     question_diversity,
     validate_evidence_references,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CritiqueQuestionGenerator(Protocol):
@@ -133,9 +136,23 @@ class CriticAgent:
                 continue
             seen_question_ids.add(candidate.id)
 
-            direction = self._validate_question(
-                candidate, directions, evidence_by_id
-            )
+            try:
+                direction = self._validate_question(
+                    candidate, directions, evidence_by_id
+                )
+            except ValueError:
+                # The generator produced a question pointing at a direction,
+                # claim, or evidence id that does not exist. It is unusable
+                # rather than merely weak, so it leaves the replacement queue
+                # without consuming an accepted slot and without a rejection
+                # score, which only describes quality.
+                logger.warning(
+                    "Discarded critique question %s: it references something "
+                    "outside the supplied analysis",
+                    candidate.id,
+                    exc_info=True,
+                )
+                continue
             semantic = self.reviewer.review_question(
                 question=candidate,
                 direction=direction,
@@ -263,9 +280,7 @@ def _fallback_research_request(
     ]
     if not claim_targets:
         claim_targets = [
-            (direction, claim)
-            for direction in directions
-            for claim in direction.claims
+            (direction, claim) for direction in directions for claim in direction.claims
         ]
     claim_targets = claim_targets[:3]
     queries = [
