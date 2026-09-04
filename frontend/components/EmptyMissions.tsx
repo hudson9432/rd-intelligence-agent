@@ -8,8 +8,8 @@ export function EmptyMissions() {
       </div>
       <h3>No research missions yet</h3>
       <p>
-        Your evidence-backed research missions will appear here once the
-        workflow API is connected.
+        Create your first mission above. Evidence, opportunity ranking, and PoC
+        plans will appear here as the agent workflow is wired up.
       </p>
     </div>
   );
