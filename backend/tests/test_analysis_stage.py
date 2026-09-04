@@ -83,9 +83,9 @@ class SuppliedEvidence:
         self.cards = list(cards)
 
     def extract(
-        self, *, mission_id: UUID, sources: Sequence[SourceResult]
+        self, *, mission_id: UUID, goal: str, sources: Sequence[SourceResult]
     ) -> Sequence[EvidenceCard]:
-        del mission_id, sources
+        del mission_id, goal, sources
         return self.cards
 
 

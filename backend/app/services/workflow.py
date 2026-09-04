@@ -12,15 +12,12 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import WorkflowOrchestrator, WorkflowStages
-from app.agents.pending_stages import (
-    PendingActionStage,
-    PendingDecisionStage,
-    PendingEvidenceStage,
-    PendingSearchStage,
-)
+from app.agents.pending_stages import PendingActionStage, PendingDecisionStage
 from app.core.config import Settings
 from app.core.llm import LLMClient
 from app.services.analysis_stage import PhaseCAnalysisStage
+from app.services.evidence_stage import PersistingEvidenceStage
+from app.services.search_stage import ResearchSourceSearchStage
 from app.repositories.action_plan import ActionPlanRepository
 from app.repositories.agent_event import AgentEventRepository
 from app.schemas.agent_event import AgentEventCreate
@@ -40,20 +37,26 @@ class WorkflowAlreadyRunningError(RuntimeError):
 
 
 def default_stages(
+    session: Session,
     *,
     llm_client: LLMClient | None = None,
     settings: Settings | None = None,
 ) -> WorkflowStages:
     """The current stage set.
 
-    Analysis is real — `PhaseCAnalysisStage` runs the Analyst, the Critic, and
-    the viability gate. The rest are placeholders; see
-    `app.agents.pending_stages` for what each one does and does not do.
+    Search, Evidence, and Analysis are real. Decision and Action are still
+    placeholders; see `app.agents.pending_stages` for what each does and does
+    not do.
+
+    The search stage is built per call because it remembers which sources a
+    run has already seen, which must not leak between missions.
     """
 
     return WorkflowStages(
-        search=PendingSearchStage(),
-        evidence=PendingEvidenceStage(),
+        search=ResearchSourceSearchStage(settings=settings),
+        evidence=PersistingEvidenceStage(
+            session, llm_client=llm_client, settings=settings
+        ),
         analysis=PhaseCAnalysisStage(llm_client, settings=settings),
         decision=PendingDecisionStage(),
         action=PendingActionStage(),
@@ -71,7 +74,7 @@ class WorkflowService:
         self.missions = MissionService(session)
         self.events = AgentEventRepository(session)
         self.action_plans = ActionPlanRepository(session)
-        self.stages = stages if stages is not None else default_stages()
+        self.stages = stages if stages is not None else default_stages(session)
         self.max_iterations = max_iterations
 
     def run(self, mission_id: UUID | str) -> WorkflowRunResult:

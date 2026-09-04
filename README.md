@@ -20,13 +20,15 @@ the end-to-end agent workflow remains forthcoming.
 | --- | --- |
 | Repository and local environments | Complete |
 | FastAPI health API and initial schemas | Complete |
-| Next.js dashboard shell | Complete |
+| Next.js dashboard with mission list and creation | Complete |
 | SQLite persistence and mission APIs | Complete |
 | arXiv/GitHub research source tools (`POST /research/search`) | Complete |
 | Workflow orchestrator (`POST /missions/{id}/run`) | In progress |
 | LLM provider and Evidence extraction foundations | In progress |
-| End-to-end agent workflow | Planned |
-| Deterministic offline demo | Planned |
+| Analyst, Critic, and the Phase C viability gate | Complete |
+| Goal to sources to evidence to decision, offline | Complete |
+| PoC action plan and Decision Engine scoring | Planned |
+| Deterministic offline demo | In progress |
 
 See [the implementation roadmap](docs/ROADMAP.md) for the ordered delivery
 phases and [the architecture guide](docs/ARCHITECTURE.md) for system boundaries.
@@ -178,26 +180,29 @@ curl http://localhost:8000/missions/{mission_id}/events
 ```
 
 The graph runs on LangGraph; routing and the re-search bound stay in
-deterministic Python, with LangGraph's step limit only as a backstop. The
-graph, its loop, its event stream, and its Analysis stage are real — Analysis
-runs the Analyst, the Critic, and the Phase C viability gate. Search,
-Evidence, Decision, and Action are not built yet: an unimplemented phase returns an empty
-result rather than invented data, so a run with the default stage set
-truthfully ends at `no_viable_direction`. Replace a stage as its phase lands;
-see `backend/app/agents/pending_stages.py`.
+deterministic Python, with LangGraph's step limit only as a backstop.
+
+Search, Evidence, and Analysis are real, so a run goes from the mission goal to
+retrieved sources, to persisted evidence, to a Phase C handoff, to a decision —
+offline, with `MOCK_EXTERNAL_APIS` and `MOCK_LLM` at their defaults. It stops
+at a PoC *candidate*: the Decision stage follows the Phase C gate without
+scoring, and the Action stage produces no task plan, so the run reports
+`action_plan_skipped` rather than inventing one. An unimplemented phase always
+returns an empty result rather than plausible-looking data; see
+`backend/app/agents/pending_stages.py`.
 
 ## Current placeholders
 
-- `backend/app/agents/pending_stages.py`: the Search, Evidence, Decision, and
-  Action workflow stages. The orchestrator graph and its Analysis stage are
-  implemented; those four are not.
-- Evidence extraction exists but is not yet wired to persistence and events.
-- Most `backend/app/services` modules beyond mission and research-source services.
-- Prompts beyond the initial Evidence extraction prompt.
-- `demo`: research-source fixtures exist; the complete offline scenario remains
-  planned.
-- The dashboard's **New Research Mission** action remains disabled until the
-  frontend workflow phase connects it to the implemented mission API.
+- `backend/app/agents/pending_stages.py`: the Decision and Action workflow
+  stages. Decision follows the Phase C gate without scoring anything, and
+  Action produces no plan, so a run ends at a PoC *candidate* rather than a
+  task plan.
+- Prompts beyond Evidence extraction and Phase C analysis.
+- `demo`: a mission reaches a PoC candidate offline, but mock replay ignores
+  the query, so the Critic-driven re-search loop is not observable. See
+  `demo/README.md`.
+- The dashboard shows missions only. Evidence, decision, and action views, and
+  live progress from `GET /missions/{id}/events`, are not built.
 
 ## Collaborating
 

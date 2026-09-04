@@ -45,6 +45,8 @@ def test_run_persists_every_event_and_completes_the_mission(session: Session) ->
 
 
 def test_events_carry_structured_metadata(session: Session) -> None:
+    """The default stage set now really searches, so counts are non-zero."""
+
     mission_id = create_mission(session)
 
     WorkflowService(session, max_iterations=1).run(mission_id)
@@ -53,8 +55,11 @@ def test_events_carry_structured_metadata(session: Session) -> None:
     started = next(e for e in stored if e.event_type == "workflow_started")
     assert started.metadata_json == {"max_iterations": 1}
     retrieved = next(e for e in stored if e.event_type == "sources_retrieved")
-    assert retrieved.metadata_json["source_count"] == 0
     assert retrieved.metadata_json["iteration"] == 0
+    assert retrieved.metadata_json["source_count"] > 0
+    assert retrieved.metadata_json["queries"]
+    extracted = next(e for e in stored if e.event_type == "evidence_extracted")
+    assert extracted.metadata_json["total_count"] > 0
 
 
 def test_run_stores_a_produced_action_plan(session: Session) -> None:

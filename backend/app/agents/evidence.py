@@ -162,10 +162,16 @@ class EvidenceAgent:
             # Keep the quote in the snippet list so provenance stays checkable.
             snippets.append(limitation)
 
+        # Score against the title as well as the body. A title states the
+        # subject in the fewest words a source ever uses, so ignoring it makes
+        # a plainly on-topic paper score zero whenever its abstract happens to
+        # phrase things differently.
+        scored_text = " ".join(part for part in (source.title, source_text) if part)
+
         return EvidenceExtraction(
             limitation=limitation,
             evidence_snippets=snippets,
-            relevance_score=goal_overlap(mission_goal, source_text or ""),
+            relevance_score=goal_overlap(mission_goal, scored_text),
             extraction_confidence=1,
         )
 
