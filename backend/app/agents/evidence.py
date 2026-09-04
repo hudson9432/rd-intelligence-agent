@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from typing import Annotated
 from uuid import UUID
 
@@ -11,6 +13,49 @@ from app.core.llm import LLMClient
 from app.prompts.evidence import build_evidence_messages
 from app.schemas.evidence_card import EvidenceCardCreate
 from app.schemas.source_result import SourceResult
+from app.services.scoring import goal_overlap
+
+
+#: Phrases that mark a sentence as stating a scope limit or caveat. Kept
+#: explicit so the match is auditable rather than a general-purpose classifier.
+_LIMITATION_MARKERS = (
+    "limitation",
+    "limited to",
+    "is limited",
+    "however",
+    "only",
+    "does not",
+    "do not",
+    "did not",
+    "cannot",
+    "not evaluated",
+    "restricted to",
+    "future work",
+    "remains an open",
+)
+
+_MAX_LIMITATION_CHARS = 300
+
+_SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+")
+
+
+def _stated_limitation(source_text: str) -> str | None:
+    """Return the first sentence of the source that states a limitation.
+
+    Extraction, never invention: the returned text is a verbatim span of the
+    source, so `_validate_provenance` can confirm it. If the source states no
+    caveat, the field stays null — invariant 3 keeps unknown fields empty
+    rather than guessed.
+    """
+
+    for sentence in _SENTENCE_BREAK.split(source_text):
+        candidate = sentence.strip()
+        if not candidate:
+            continue
+        lowered = candidate.lower()
+        if any(marker in lowered for marker in _LIMITATION_MARKERS):
+            return candidate[:_MAX_LIMITATION_CHARS]
+    return None
 
 
 class EvidenceExtractionError(RuntimeError):
@@ -44,9 +89,21 @@ class EvidenceAgent:
         self._llm_client = llm_client
 
     def extract(
-        self, *, mission_id: UUID, source_id: UUID, source: SourceResult
+        self,
+        *,
+        mission_id: UUID,
+        source_id: UUID,
+        source: SourceResult,
+        mission_goal: str,
     ) -> EvidenceCardCreate:
-        messages = build_evidence_messages(source)
+        """Extract structured evidence from one source, scored against the goal.
+
+        `mission_goal` is required because `relevance_score` has no meaning
+        without it — it rates how much this source bears on what the mission is
+        trying to decide.
+        """
+
+        messages = build_evidence_messages(source, mission_goal=mission_goal)
         completion = self._llm_client.complete(messages)
 
         try:
@@ -56,7 +113,7 @@ class EvidenceAgent:
                 raise EvidenceExtractionError(
                     "LLM response could not be parsed into structured evidence"
                 ) from error
-            extraction = self._deterministic_mock_extraction(source)
+            extraction = self._deterministic_mock_extraction(source, mission_goal)
 
         self._validate_provenance(extraction, source)
 
@@ -75,20 +132,40 @@ class EvidenceAgent:
         )
 
     @staticmethod
-    def _deterministic_mock_extraction(source: SourceResult) -> EvidenceExtraction:
+    def _deterministic_mock_extraction(
+        source: SourceResult, mission_goal: str
+    ) -> EvidenceExtraction:
         """Synthesize evidence directly from the source for offline demo mode.
 
         Used only when the LLM client is the deterministic mock, whose text
-        response is not parseable JSON. Every field is derived solely from the
-        source, so the same source always yields the same evidence.
+        response is not parseable JSON. Every field is copied verbatim from the
+        source, so the same source and goal always yield the same evidence and
+        nothing is invented.
+
+        `relevance_score` comes from deterministic lexical overlap with the
+        mission goal. It used to be a hard zero, which was safe but made every
+        resulting direction fail Phase C's evidence-coverage check, so an
+        offline run could never reach a PoC candidate. Overlap is a shallow
+        stand-in for a model's judgement, not a semantic measure.
+
+        `extraction_confidence` stays at 1.0 because every field emitted here
+        is source text copied verbatim. That rates fidelity, not completeness:
+        the mock leaves problem, method, benchmark, and result unset rather
+        than guessing at them.
         """
 
-        snippet_source = source.content or source.summary or source.title
-        snippet = snippet_source[:200]
+        source_text = source.content or source.summary or source.title
+        snippets = [source_text[:200]] if source_text else []
+
+        limitation = _stated_limitation(source_text) if source_text else None
+        if limitation is not None and limitation not in snippets:
+            # Keep the quote in the snippet list so provenance stays checkable.
+            snippets.append(limitation)
 
         return EvidenceExtraction(
-            evidence_snippets=[snippet] if snippet else [],
-            relevance_score=0,
+            limitation=limitation,
+            evidence_snippets=snippets,
+            relevance_score=goal_overlap(mission_goal, source_text or ""),
             extraction_confidence=1,
         )
 

@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from app.agents.evidence import EvidenceAgent
 from app.agents.orchestrator import WorkflowOrchestrator, WorkflowStageError
 from app.core.llm import LLMClient, MockLLMClient
 from app.schemas.evidence_card import EvidenceCard
@@ -193,3 +194,98 @@ def test_the_whole_graph_reaches_a_poc_plan_on_real_analysis() -> None:
         "action_plan_created",
         "workflow_completed",
     ]
+
+
+def extracted_cards(
+    sources: Sequence[SourceResult], mission_goal: str
+) -> list[EvidenceCard]:
+    """Run real extraction, then assign the IDs persistence would assign."""
+
+    agent = EvidenceAgent(MockLLMClient())
+    cards: list[EvidenceCard] = []
+    for source in sources:
+        created = agent.extract(
+            mission_id=MISSION_ID,
+            source_id=uuid4(),
+            source=source,
+            mission_goal=mission_goal,
+        )
+        cards.append(
+            EvidenceCard(
+                id=uuid4(), created_at=datetime.now(UTC), **created.model_dump()
+            )
+        )
+    return cards
+
+
+def test_extracted_evidence_reaches_a_poc_candidate_offline() -> None:
+    """Raw sources through real extraction must be able to reach a PoC.
+
+    Before mock extraction scored relevance against the goal and quoted stated
+    limitations, this path was impossible: every card scored zero relevance, so
+    Phase C rejected every direction on evidence coverage.
+    """
+
+    goal = "Decide whether to adopt quantized on-device inference for robotics."
+    sources = [
+        SourceResult(
+            source_type="arxiv",
+            title="Quantized inference for on-device robotics",
+            url="https://example.test/1",
+            content=(
+                "We evaluate 4-bit quantized transformer inference for on-device "
+                "robotics control. Median latency reaches 38ms on the target "
+                "controller. However, the evaluation covers only a single "
+                "device class."
+            ),
+        ),
+        SourceResult(
+            source_type="arxiv",
+            title="Accuracy cost of quantization in robotics models",
+            url="https://example.test/2",
+            content=(
+                "Quantized robotics models lose 1.2% task accuracy relative to "
+                "fp16. The study does not measure long-horizon manipulation."
+            ),
+        ),
+    ]
+
+    evidence = extracted_cards(sources, goal)
+    assert all(card.relevance_score > 0 for card in evidence)
+    assert all(card.limitation for card in evidence)
+
+    handoff = PhaseCAnalysisStage(MockLLMClient()).analyze(
+        mission_goal=goal, evidence=evidence, research_exhausted=False
+    )
+
+    assert handoff.status == "ready_for_poc"
+    supplied = {card.id for card in evidence}
+    for candidate in handoff.poc_candidates:
+        assert set(candidate.evidence_ids) <= supplied
+
+
+def test_sources_unrelated_to_the_goal_do_not_reach_a_poc() -> None:
+    """Relevance must discriminate, not merely be non-zero."""
+
+    goal = "Decide whether to adopt quantized on-device inference for robotics."
+    sources = [
+        SourceResult(
+            source_type="arxiv",
+            title="Medieval crop rotation",
+            url="https://example.test/3",
+            content=(
+                "Manorial ledgers record three-field rotation in northern Europe. "
+                "However, the surviving records cover only two counties."
+            ),
+        )
+    ]
+
+    evidence = extracted_cards(sources, goal)
+    assert all(card.relevance_score == 0 for card in evidence)
+
+    handoff = PhaseCAnalysisStage(MockLLMClient()).analyze(
+        mission_goal=goal, evidence=evidence, research_exhausted=False
+    )
+
+    assert handoff.status != "ready_for_poc"
+    assert handoff.poc_candidates == []
