@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.dependencies import (
     MissionServiceDependency,
@@ -16,9 +16,12 @@ from app.schemas.research_mission import (
     ResearchMissionDetail,
     ResearchMissionSummary,
 )
-from app.schemas.workflow import WorkflowRunResult
+from app.schemas.workflow import WorkflowRunAccepted, WorkflowRunResult
 from app.services.mission import MissionNotFoundError
-from app.services.workflow import WorkflowAlreadyRunningError
+from app.services.workflow import (
+    WorkflowAlreadyRunningError,
+    run_workflow_in_background,
+)
 
 router = APIRouter(prefix="/missions", tags=["missions"])
 
@@ -93,3 +96,33 @@ def run_mission_workflow(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "workflow_already_running", "message": str(error)},
         ) from error
+
+
+@router.post(
+    "/{mission_id}/run/async",
+    response_model=WorkflowRunAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def run_mission_workflow_in_background(
+    mission_id: UUID,
+    background_tasks: BackgroundTasks,
+    service: WorkflowServiceDependency,
+) -> WorkflowRunAccepted:
+    """Queue a real-provider workflow without holding the HTTP request open."""
+
+    try:
+        claimed_id = service.claim_run(mission_id)
+    except MissionNotFoundError as error:
+        raise _not_found(error) from error
+    except WorkflowAlreadyRunningError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "workflow_already_running", "message": str(error)},
+        ) from error
+
+    background_tasks.add_task(run_workflow_in_background, claimed_id)
+    return WorkflowRunAccepted(
+        mission_id=mission_id,
+        mission_url=f"/missions/{mission_id}",
+        events_url=f"/missions/{mission_id}/events",
+    )

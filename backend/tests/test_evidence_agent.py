@@ -59,6 +59,49 @@ def test_extract_parses_valid_structured_response() -> None:
     assert evidence.relevance_score == 0.8
 
 
+def test_extract_accepts_json_wrapped_in_a_markdown_fence() -> None:
+    content = (
+        "```json\n"
+        '{"problem": null, "method": "recovery loops", '
+        '"benchmark": null, "result": null, "limitation": null, '
+        '"technology_tags": ["recovery"], '
+        '"evidence_snippets": ["recovery loops"], '
+        '"relevance_score": 0.8, "extraction_confidence": 0.9}'
+        "\n```"
+    )
+
+    evidence = EvidenceAgent(_StubLLMClient(content)).extract(
+        mission_id=uuid4(),
+        source_id=uuid4(),
+        source=_source(),
+        mission_goal=GOAL,
+    )
+
+    assert evidence.method == "recovery loops"
+
+
+def test_provenance_accepts_only_whitespace_normalization() -> None:
+    content = (
+        '{"problem": null, "method": "recovery loop", '
+        '"benchmark": null, "result": null, "limitation": null, '
+        '"technology_tags": [], '
+        '"evidence_snippets": ["recovery loops for computer-use agents"], '
+        '"relevance_score": 0.8, "extraction_confidence": 0.9}'
+    )
+    source = _source(
+        content="The paper studies recovery\n  loops for computer-use agents."
+    )
+
+    evidence = EvidenceAgent(_StubLLMClient(content)).extract(
+        mission_id=uuid4(),
+        source_id=uuid4(),
+        source=source,
+        mission_goal=GOAL,
+    )
+
+    assert evidence.evidence_snippets_json == ["recovery loops for computer-use agents"]
+
+
 def test_extract_raises_on_malformed_real_response() -> None:
     agent = EvidenceAgent(_StubLLMClient("not json", mocked=False))
 

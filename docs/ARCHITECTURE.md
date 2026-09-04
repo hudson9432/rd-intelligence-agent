@@ -27,7 +27,8 @@ flowchart LR
 - **Tools:** deterministic source retrieval, parsing, hashing, deduplication, and
   optional workflow integrations.
 - **Persistence:** SQLite with repository abstractions for the MVP.
-- **Orchestration:** planned LangGraph typed state graph with bounded re-search.
+- **Orchestration:** LangGraph typed state graph with bounded re-search and an
+  optional in-process background API runner.
 
 ## Data flow rules
 
@@ -36,7 +37,8 @@ flowchart LR
 - Source records retain their original URL and normalized content hash.
 - Evidence cards point to their source; opportunities and decisions point to
   evidence IDs.
-- LLM structured output is validated before persistence.
+- LLM structured output requests provider JSON mode and is validated through a
+  shared typed boundary before persistence or routing.
 - Numeric opportunity scores and coverage thresholds are calculated in code.
 - Providers are selected from environment configuration and have deterministic
   mocks for tests/demo.
@@ -44,6 +46,7 @@ flowchart LR
 ## Failure model
 
 An unavailable source or malformed LLM response becomes a recorded, typed error.
-Existing workflow state is preserved. The orchestrator continues only when the
-remaining evidence can support a meaningful result, and every retry/iteration
-is bounded.
+If some sources fail Evidence extraction, verified cards may continue; if every
+new source fails, the stage fails explicitly rather than reporting a genuine
+`no_viable_direction`. Existing workflow state is preserved, and every
+retry/iteration is bounded.

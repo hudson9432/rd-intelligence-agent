@@ -2,12 +2,15 @@
 
 from uuid import UUID, uuid4
 
+import pytest
 from sqlalchemy.orm import Session
 
+from app.agents.orchestrator import WorkflowStageError
 from app.core.config import Settings
-from app.core.llm import MockLLMClient
+from app.core.llm import LLMClient, LLMProviderError, MockLLMClient
 from app.repositories.evidence_card import EvidenceCardRepository
 from app.repositories.source_document import SourceDocumentRepository
+from app.schemas.llm import LLMCompletion, LLMMessage
 from app.schemas.research_mission import MissionStatus, ResearchMissionCreate
 from app.schemas.source_result import SourceResult
 from app.services.evidence_stage import PersistingEvidenceStage
@@ -15,7 +18,35 @@ from app.services.mission import MissionService
 from app.services.search_stage import ResearchSourceSearchStage
 from app.services.workflow import WorkflowService
 
-GOAL = "Decide whether retrieval augmented generation is reliable enough for our product."
+GOAL = (
+    "Decide whether retrieval augmented generation is reliable enough for our product."
+)
+
+
+class SequenceLLMClient(LLMClient):
+    def __init__(self, responses: list[str]) -> None:
+        self.responses = responses
+
+    def complete(self, messages: list[LLMMessage]) -> LLMCompletion:
+        del messages
+        return LLMCompletion(
+            content=self.responses.pop(0), model="live-stub", mocked=False
+        )
+
+
+class FailingLLMClient(LLMClient):
+    def complete(self, messages: list[LLMMessage]) -> LLMCompletion:
+        del messages
+        raise LLMProviderError("provider unavailable")
+
+
+def extraction_json(snippet: str) -> str:
+    return (
+        '{"problem":null,"method":null,"benchmark":null,"result":null,'
+        '"limitation":null,"technology_tags":[],'
+        f'"evidence_snippets":["{snippet}"],'
+        '"relevance_score":0.8,"extraction_confidence":0.9}'
+    )
 
 
 def mock_settings() -> Settings:
@@ -132,9 +163,7 @@ def test_extraction_scores_relevance_against_the_goal(session: Session) -> None:
         mission_id=mission_id, goal=GOAL, sources=sources
     )
 
-    by_url = {
-        str(card.source_id): card.relevance_score for card in cards
-    }
+    by_url = {str(card.source_id): card.relevance_score for card in cards}
     assert len(by_url) == 2
     assert max(by_url.values()) > min(by_url.values())
 
@@ -142,10 +171,91 @@ def test_extraction_scores_relevance_against_the_goal(session: Session) -> None:
 def test_extraction_of_no_sources_is_a_no_op(session: Session) -> None:
     mission_id = create_mission(session)
 
-    assert evidence_stage(session).extract(
-        mission_id=mission_id, goal=GOAL, sources=[]
-    ) == []
+    assert (
+        evidence_stage(session).extract(mission_id=mission_id, goal=GOAL, sources=[])
+        == []
+    )
     assert SourceDocumentRepository(session).list_for_mission(mission_id) == []
+
+
+def test_all_invalid_provider_outputs_fail_instead_of_looking_like_no_evidence(
+    session: Session,
+) -> None:
+    mission_id = create_mission(session)
+    stage = PersistingEvidenceStage(
+        session,
+        llm_client=SequenceLLMClient(["not-json", "also-not-json"]),
+    )
+
+    with pytest.raises(WorkflowStageError, match="all 2 new source"):
+        stage.extract(
+            mission_id=mission_id,
+            goal=GOAL,
+            sources=[
+                source("First", "https://example.test/a"),
+                source("Second", "https://example.test/b"),
+            ],
+        )
+
+
+def test_a_source_without_evidence_is_retried_instead_of_silently_skipped(
+    session: Session,
+) -> None:
+    mission_id = create_mission(session)
+    candidate = source("First", "https://example.test/a")
+
+    with pytest.raises(WorkflowStageError):
+        PersistingEvidenceStage(
+            session,
+            llm_client=SequenceLLMClient(["not-json"]),
+        ).extract(mission_id=mission_id, goal=GOAL, sources=[candidate])
+
+    cards = PersistingEvidenceStage(
+        session,
+        llm_client=SequenceLLMClient(
+            [extraction_json("The method improves grounded answer quality.")]
+        ),
+    ).extract(mission_id=mission_id, goal=GOAL, sources=[candidate])
+
+    assert len(cards) == 1
+    assert len(SourceDocumentRepository(session).list_for_mission(mission_id)) == 1
+
+
+def test_one_invalid_provider_output_does_not_discard_valid_evidence(
+    session: Session,
+) -> None:
+    mission_id = create_mission(session)
+    valid_snippet = "The method improves grounded answer quality."
+    stage = PersistingEvidenceStage(
+        session,
+        llm_client=SequenceLLMClient(["not-json", extraction_json(valid_snippet)]),
+    )
+
+    cards = stage.extract(
+        mission_id=mission_id,
+        goal=GOAL,
+        sources=[
+            source("First", "https://example.test/a"),
+            source("Second", "https://example.test/b"),
+        ],
+    )
+
+    assert len(cards) == 1
+    assert cards[0].evidence_snippets_json == [valid_snippet]
+
+
+def test_provider_transport_failure_becomes_a_workflow_stage_error(
+    session: Session,
+) -> None:
+    mission_id = create_mission(session)
+    stage = PersistingEvidenceStage(session, llm_client=FailingLLMClient())
+
+    with pytest.raises(WorkflowStageError, match="provider request failed"):
+        stage.extract(
+            mission_id=mission_id,
+            goal=GOAL,
+            sources=[source("First", "https://example.test/a")],
+        )
 
 
 def test_evidence_belongs_to_the_mission_that_asked_for_it(
@@ -155,13 +265,13 @@ def test_evidence_belongs_to_the_mission_that_asked_for_it(
     other_mission = uuid4()
 
     cards = evidence_stage(session).extract(
-        mission_id=mission_id, goal=GOAL, sources=[source("A", "https://example.test/a")]
+        mission_id=mission_id,
+        goal=GOAL,
+        sources=[source("A", "https://example.test/a")],
     )
 
     assert all(card.mission_id == mission_id for card in cards)
-    assert (
-        EvidenceCardRepository(session).list_for_mission(other_mission) == []
-    )
+    assert EvidenceCardRepository(session).list_for_mission(other_mission) == []
 
 
 # ----------------------------------------------------------- whole mission
@@ -183,7 +293,9 @@ def test_a_mission_now_runs_from_goal_to_a_poc_candidate(session: Session) -> No
     assert MissionService(session).get(mission_id).status == MissionStatus.COMPLETED
 
     # Every cited evidence id traces to a row stored for this mission.
-    stored = {card.id for card in EvidenceCardRepository(session).list_for_mission(mission_id)}
+    stored = {
+        card.id for card in EvidenceCardRepository(session).list_for_mission(mission_id)
+    }
     for candidate in result.poc_candidates:
         assert {str(i) for i in candidate.evidence_ids} <= {str(i) for i in stored}
 
@@ -204,3 +316,7 @@ def test_the_run_records_each_stage_as_an_event(session: Session) -> None:
         "action_plan_skipped",
         "workflow_completed",
     ]
+    completed = result.events[-1]
+    assert completed.metadata["evidence_count"] == result.evidence_count
+    assert completed.metadata["decision"] == result.decision.model_dump(mode="json")
+    assert completed.metadata["poc_candidates"]

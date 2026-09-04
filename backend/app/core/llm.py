@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable
+from typing import TypeVar
 
 import httpx2 as httpx
 from pydantic import BaseModel, Field, ValidationError
@@ -13,6 +16,13 @@ from app.schemas.llm import LLMCompletion, LLMMessage
 
 REQUEST_TIMEOUT_SECONDS = 30.0
 MAX_ATTEMPTS = 3
+
+StructuredModel = TypeVar("StructuredModel", bound=BaseModel)
+
+_JSON_FENCE = re.compile(
+    r"\A```(?:json)?\s*(?P<payload>.*?)\s*```\Z",
+    flags=re.IGNORECASE | re.DOTALL,
+)
 
 
 class _ProviderMessage(BaseModel):
@@ -31,12 +41,51 @@ class LLMProviderError(RuntimeError):
     """Raised when an LLM provider is misconfigured or fails after all retries."""
 
 
+class LLMStructuredOutputError(RuntimeError):
+    """Raised when a completion cannot satisfy a requested Pydantic contract."""
+
+
 class LLMClient(ABC):
     """Chat-completion interface shared by every LLM provider implementation."""
 
     @abstractmethod
     def complete(self, messages: list[LLMMessage]) -> LLMCompletion:
         raise NotImplementedError
+
+    def complete_structured(
+        self,
+        messages: list[LLMMessage],
+        response_model: type[StructuredModel],
+        *,
+        mock_factory: Callable[[], StructuredModel] | None = None,
+    ) -> StructuredModel:
+        """Return validated structured output from a provider completion.
+
+        Real providers are parsed through one tolerant boundary rather than
+        duplicating strict JSON parsing in every agent. Deterministic mock
+        behavior remains explicit at each call site through ``mock_factory``.
+        """
+
+        completion = self._complete_for_structure(messages)
+        if completion.mocked:
+            if mock_factory is None:
+                raise LLMStructuredOutputError(
+                    "Mocked structured completion requires a deterministic factory"
+                )
+            return mock_factory()
+
+        payload = _strip_json_fence(completion.content)
+        try:
+            return response_model.model_validate_json(payload)
+        except (ValidationError, ValueError) as error:
+            raise LLMStructuredOutputError(
+                f"LLM response did not match {response_model.__name__}"
+            ) from error
+
+    def _complete_for_structure(self, messages: list[LLMMessage]) -> LLMCompletion:
+        """Provider hook for requesting JSON mode when it is available."""
+
+        return self.complete(messages)
 
 
 class MockLLMClient(LLMClient):
@@ -85,10 +134,26 @@ class OpenAICompatibleLLMClient(LLMClient):
         self._transport = transport
 
     def complete(self, messages: list[LLMMessage]) -> LLMCompletion:
+        return self._request(messages)
+
+    def _complete_for_structure(self, messages: list[LLMMessage]) -> LLMCompletion:
+        return self._request(
+            messages,
+            response_format={"type": "json_object"},
+        )
+
+    def _request(
+        self,
+        messages: list[LLMMessage],
+        *,
+        response_format: dict[str, str] | None = None,
+    ) -> LLMCompletion:
         payload = {
             "model": self._model,
             "messages": [message.model_dump() for message in messages],
         }
+        if response_format is not None:
+            payload["response_format"] = response_format
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
         last_error: Exception | None = None
@@ -128,6 +193,14 @@ class OpenAICompatibleLLMClient(LLMClient):
         raise LLMProviderError(
             f"LLM provider request failed after {MAX_ATTEMPTS} attempts"
         ) from last_error
+
+
+def _strip_json_fence(content: str) -> str:
+    """Remove a single Markdown JSON fence while rejecting surrounding prose."""
+
+    stripped = content.strip()
+    match = _JSON_FENCE.fullmatch(stripped)
+    return match.group("payload").strip() if match else stripped
 
 
 def get_llm_client(settings: Settings) -> LLMClient:

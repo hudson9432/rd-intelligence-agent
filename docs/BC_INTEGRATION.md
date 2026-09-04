@@ -20,16 +20,17 @@ does not change mission or source provenance.
 
 LLMAnalysisAdapter uses B's provider-independent LLMClient and implements C's
 direction generator, critique-question generator, independent question review,
-and claim review interfaces. Real provider responses must satisfy strict
-Pydantic JSON contracts. Malformed responses become AnalysisGenerationError
-rather than partial or guessed analysis.
+and claim review interfaces. All four use `LLMClient.complete_structured`, which
+requests JSON object mode from OpenAI-compatible providers, removes one optional
+Markdown JSON fence, and validates the Pydantic contract. Malformed responses
+become `AnalysisGenerationError` rather than partial or guessed analysis.
 
 The same adapter supports MockLLMClient without external calls. Mock directions
 and questions are derived only from persisted EvidenceCard fields and IDs.
 
 ## B-side follow-up
 
-Items 1 and 2 are addressed; 3 and 4 remain open.
+Items 1–3 are addressed; item 4 remains held by design.
 
 1. **Done.** Generic mock extraction no longer assigns relevance_score zero, so
    directions no longer fail Phase C on zero evidence coverage. The score comes
@@ -41,9 +42,9 @@ Items 1 and 2 are addressed; 3 and 4 remain open.
    the mission was trying to decide. The mock still does not guess — overlap is
    lexical, and it is documented as a stand-in for a model's judgement rather
    than a semantic measure.
-3. **Open.** Consider adding a typed structured-completion helper to LLMClient.
-   LLMAnalysisAdapter performs strict Pydantic parsing locally to avoid
-   changing B's public provider contract during parallel work.
+3. **Done.** `LLMClient.complete_structured` is the shared typed boundary for
+   Evidence and every Phase C generation/review call. Deterministic mock
+   factories remain explicit at the call site.
 4. **Held.** Extraction still returns EvidenceCardCreate; stable evidence IDs
    still come from persistence.
 
@@ -55,12 +56,7 @@ generator, in turn, only produces a question without a suggested search when
 the evidence card records a limitation — so a source that states no caveat can
 never reach a PoC candidate offline.
 
-The fixtures in `demo/fixtures/` are one-sentence blurbs for real papers and
-repositories, with no stated limitations, so the current demo path stops at
-`research_required`. The chain is proven to work on sources that do state
-caveats (`test_extracted_evidence_reaches_a_poc_candidate_offline`); what is
-missing is fixture content, not capability.
-
-Phase 14 should capture fuller responses from the live arXiv and GitHub APIs
-rather than hand-writing abstracts for real papers, which would fabricate
-source text.
+The fixtures in `demo/fixtures/` are frozen responses captured from the live
+arXiv and GitHub APIs. The current set contains stated limitations and reaches
+`ready_for_poc` deterministically. Mock replay remains query-insensitive, so a
+targeted re-search round cannot demonstrate improvement from new evidence yet.

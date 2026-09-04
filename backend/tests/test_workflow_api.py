@@ -1,8 +1,10 @@
 """Workflow endpoint contract."""
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.api import missions as missions_api
 from app.schemas.research_mission import MissionStatus, ResearchMissionUpdate
 from app.services.mission import MissionService
 
@@ -79,3 +81,49 @@ def test_run_rejects_a_malformed_mission_id(client: TestClient) -> None:
     response = client.post("/missions/not-a-uuid/run")
 
     assert response.status_code == 422
+
+
+def test_background_run_returns_202_and_exposes_polling_urls(
+    client: TestClient,
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mission_id = create_mission(client)
+    scheduled: list[str] = []
+
+    def record_scheduled(claimed_id: str) -> None:
+        scheduled.append(claimed_id)
+
+    monkeypatch.setattr(
+        missions_api,
+        "run_workflow_in_background",
+        record_scheduled,
+    )
+
+    response = client.post(f"/missions/{mission_id}/run/async")
+
+    assert response.status_code == 202
+    assert response.json() == {
+        "mission_id": mission_id,
+        "status": "accepted",
+        "message": "Workflow accepted for background execution.",
+        "mission_url": f"/missions/{mission_id}",
+        "events_url": f"/missions/{mission_id}/events",
+    }
+    assert scheduled == [mission_id]
+    assert MissionService(session).get(mission_id).status == MissionStatus.RUNNING
+
+
+def test_background_run_rejects_an_already_running_mission(
+    client: TestClient,
+    session: Session,
+) -> None:
+    mission_id = create_mission(client)
+    MissionService(session).update(
+        mission_id, ResearchMissionUpdate(status=MissionStatus.RUNNING)
+    )
+
+    response = client.post(f"/missions/{mission_id}/run/async")
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "workflow_already_running"

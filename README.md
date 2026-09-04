@@ -8,11 +8,11 @@ The intended product loop is:
 
 > Research → Evidence → Evaluate → Decide → Act
 
-This repository contains the **phase 1–2 foundation**: a FastAPI backend,
-SQLite persistence and mission APIs, plus a Next.js dashboard shell. It also
-includes early provider-independent LLM and provenance-safe Evidence extraction
-components for parallel development. arXiv/GitHub research tools are available;
-the end-to-end agent workflow remains forthcoming.
+The repository now runs a mission from source retrieval through Evidence,
+Analyst, and Critic agents to an evidence-backed PoC candidate. It supports a
+deterministic offline mode and an OpenAI-compatible real-model mode. Decision
+scoring and Action planning remain explicit placeholders; the project does not
+claim that those unfinished stages are model-backed agents.
 
 ## Project status
 
@@ -24,7 +24,7 @@ the end-to-end agent workflow remains forthcoming.
 | SQLite persistence and mission APIs | Complete |
 | arXiv/GitHub research source tools (`POST /research/search`) | Complete |
 | Workflow orchestrator (`POST /missions/{id}/run`) | In progress |
-| LLM provider and Evidence extraction foundations | In progress |
+| Typed structured LLM output and provider integration | Complete |
 | Analyst, Critic, and the Phase C viability gate | Complete |
 | Goal to sources to evidence to decision, offline | Complete |
 | PoC action plan and Decision Engine scoring | Planned |
@@ -145,7 +145,7 @@ the populated `.env` file or API keys.
 | `CORS_ORIGINS` | JSON list of allowed frontend origins | `["http://localhost:3000"]` |
 | `DATABASE_URL` | SQLAlchemy database URL | `sqlite:///./data/rd_intelligence.db` |
 | `DATABASE_ECHO` | Log generated SQL for debugging | `false` |
-| `LLM_BASE_URL` | OpenAI-compatible API base URL | empty |
+| `LLM_BASE_URL` | OpenAI-compatible API base URL, normally ending in `/v1` | empty |
 | `LLM_API_KEY` | Secret provider credential | empty |
 | `LLM_MODEL` | Provider model name | empty |
 | `MOCK_LLM` | Use the deterministic, offline LLM client | `true` |
@@ -172,12 +172,27 @@ output are structurally identical.
 ## Running a mission workflow
 
 `POST /missions/{mission_id}/run` executes the mission graph and records every
-stage transition as an `AgentEvent`:
+stage transition as an `AgentEvent`. It waits for the complete result and is
+best suited to offline mode, tests, or direct backend calls:
 
 ```bash
 curl -X POST http://localhost:8000/missions/{mission_id}/run
 curl http://localhost:8000/missions/{mission_id}/events
 ```
+
+For real providers, use the background endpoint so multiple model calls do not
+hold one HTTP request open:
+
+```bash
+curl -X POST http://localhost:8000/missions/{mission_id}/run/async
+curl http://localhost:8000/missions/{mission_id}
+curl http://localhost:8000/missions/{mission_id}/events
+```
+
+The background request returns `202 Accepted` with `mission_url` and
+`events_url`. Poll until the mission status is `completed` or `failed`. The
+terminal `workflow_completed` event includes `evidence_count`, `decision`, and
+the evidence-linked `poc_candidates` summary.
 
 The graph runs on LangGraph; routing and the re-search bound stay in
 deterministic Python, with LangGraph's step limit only as a backstop.
@@ -191,6 +206,34 @@ scoring, and the Action stage produces no task plan, so the run reports
 returns an empty result rather than plausible-looking data; see
 `backend/app/agents/pending_stages.py`.
 
+### Using a real model
+
+Configure `backend/.env` without committing it:
+
+```dotenv
+MOCK_LLM=false
+LLM_BASE_URL=https://your-openai-compatible-provider.example/v1
+LLM_API_KEY=your-secret-key
+LLM_MODEL=your-model-name
+```
+
+The provider must support the Chat Completions endpoint and JSON object response
+mode. Structured calls send `response_format: {"type":"json_object"}` and then
+validate the response against the relevant Pydantic contract. A response wrapped
+in a single Markdown `json` fence is accepted; prose or a schema mismatch fails
+the workflow instead of silently becoming `no_viable_direction`.
+
+Evidence snippets must still come from the source. Provenance matching tolerates
+Unicode normalization and whitespace-only changes, but rejects paraphrases,
+translations, and invented text. If every retrieved source is rejected, the
+Evidence stage reports a provider failure rather than pretending no viable
+direction exists.
+
+`MOCK_EXTERNAL_APIS=true` may be kept while using a real LLM. In that mode the
+sources are frozen responses previously captured from the real arXiv and GitHub
+APIs, while Evidence/Analyst/Critic cognition comes from the configured model.
+Set `MOCK_EXTERNAL_APIS=false` as well to query both source APIs live.
+
 ## Current placeholders
 
 - `backend/app/agents/pending_stages.py`: the Decision and Action workflow
@@ -203,6 +246,9 @@ returns an empty result rather than plausible-looking data; see
   `demo/README.md`.
 - The dashboard shows missions only. Evidence, decision, and action views, and
   live progress from `GET /missions/{id}/events`, are not built.
+- The in-process background runner is appropriate for the hackathon demo, but
+  it is not a durable distributed job queue: a process restart can interrupt a
+  running mission.
 
 ## Collaborating
 

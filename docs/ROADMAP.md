@@ -7,7 +7,7 @@ Status values: `complete`, `in progress`, `next`, `planned`, `optional`.
 | 01 | complete | Repository, FastAPI health API, schemas, Next.js shell, tests |
 | 02 | complete | SQLite persistence, repositories, mission/event APIs |
 | 03 | complete | arXiv and GitHub tools, normalization, deduplication, mock sources |
-| 04 | in progress | Provider-independent LLM client and deterministic mock LLM |
+| 04 | complete | Provider-independent LLM client and deterministic mock LLM |
 | 05 | in progress | Search Agent |
 | 06 | in progress | Evidence Agent with strict provenance |
 | 07 | complete | Analyst Agent and deterministic opportunity scoring |
@@ -26,9 +26,11 @@ Status values: `complete`, `in progress`, `next`, `planned`, `optional`.
 Each phase should land as a scoped issue/PR and leave the repository passing
 backend tests plus frontend lint/build.
 
-Phase 04 remains in progress until `LLMClient` offers a typed
-structured-completion helper; every caller currently repeats strict Pydantic
-parsing of its own.
+Phase 04 includes a typed structured-completion helper. OpenAI-compatible
+structured calls request JSON object mode, tolerate one Markdown JSON fence,
+and validate against the caller's Pydantic contract. Schema and provider errors
+terminate the relevant workflow stage instead of being interpreted as missing
+research evidence.
 
 Phase 05 is in progress rather than complete: `ResearchSourceSearchStage`
 executes the mission's queries, merges, and drops sources already seen, but it
@@ -40,7 +42,9 @@ Phase 06 now deduplicates, filters, and persists: `PersistingEvidenceStage`
 stores each source, extracts against the mission goal, skips sources that fail
 their provenance checks, and persists evidence through the B-to-C bridge so
 ids come from the database. It remains in progress until the demo relies on
-something better than lexical relevance scoring offline.
+something better than lexical relevance scoring offline. Live-model provenance
+tolerates Unicode and whitespace normalization but still rejects paraphrased or
+invented quotes; if every new source is rejected, the workflow fails explicitly.
 
 Phases 07 and 08 landed with the Analyst, Critic, coverage scoring, and
 targeted query output, recorded in `docs/PHASE_C_CONTRACT.md`. The table said
@@ -50,17 +54,23 @@ A mission now runs end to end offline: goal to sources to persisted evidence to
 a Phase C handoff to a decision. It stops short of an action plan because
 phase 11 is not built.
 
+Real-provider runs can be queued through `POST /missions/{id}/run/async` and
+observed through mission status plus persisted events. This in-process runner
+prevents a chain of model calls from holding open the initiating request, but a
+durable external job queue remains production work.
+
 Phase 09 has landed as a graph skeleton: routing, the bounded re-search loop,
-event persistence, and mission status are implemented and tested. Its Analysis
-stage is real; Search, Evidence, Decision, and Action are still placeholders.
-It remains in progress until real stages replace them.
+event persistence, and mission status are implemented and tested. Search,
+Evidence, and Analysis use their real implementations; Decision is provisional
+and Action remains a placeholder. It remains in progress until those final
+stages are real and background execution is durable.
 
 Phase 07/08 analysis is reachable from the workflow: `PhaseCAnalysisStage`
 composes the Analyst, the Critic, and the viability gate behind the graph's
 Analysis node. On the deterministic mock provider the pipeline produces a real,
 evidence-grounded PoC candidate when it is given evidence that records
-limitations. It cannot do so from a live mission yet, because the Search and
-Evidence stages that would supply that evidence are not built.
+limitations. A configured real provider now drives all four Phase C generation
+and review boundaries through the same structured-output contract.
 
 The graph runs on LangGraph (`langgraph==1.2.11`). This is a deliberate,
 recorded exception to the `AGENTS.md` rule against adding a framework while a

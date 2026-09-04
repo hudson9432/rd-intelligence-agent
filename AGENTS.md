@@ -30,7 +30,9 @@ Phases 1–2 (repository foundation and persistence) are complete:
   and mission/source cascade behavior.
 - Mission create/list/get and event-list APIs.
 - A provider-independent synchronous LLM client, deterministic mock client, and
-  an OpenAI-compatible implementation with bounded retries.
+  an OpenAI-compatible implementation with bounded retries. Structured calls
+  request JSON object mode, tolerate one Markdown JSON fence, and validate once
+  through a typed Pydantic boundary.
 - A standalone Evidence extraction component with Pydantic validation and
   exact source-snippet provenance checks. It takes the mission goal, because
   `relevance_score` is meaningless without one. Offline extraction scores
@@ -45,6 +47,9 @@ Phases 1–2 (repository foundation and persistence) are complete:
   handoff, to a decision, entirely offline. Decision is provisional and Action
   is still a placeholder, so a run stops short of a PoC task plan and reports
   `action_plan_skipped` rather than inventing one.
+- Real-provider runs can use `POST /missions/{id}/run/async`; the in-process
+  background worker uses its own database session and exposes progress and its
+  terminal summary through persisted mission events.
 - Next.js App Router dashboard that lists and creates missions against the
   mission API from a client component, with loading, timeout, and error
   states, covered by Vitest tests in CI. Evidence, decision, and action views
@@ -61,10 +66,11 @@ Phase 3 research-source tools are implemented:
   frozen arXiv/GitHub responses through the live parsers. Mock responses are
   deterministic and honor source selection, per-source limits, and date filters.
 
-The complete Evidence persistence/event pipeline, Search and other agents,
-LangGraph orchestration, and an end-to-end demo are not implemented yet. The
-source, LLM, and Evidence components are not wired into a public mission
-workflow. Do not claim that these partial components form an end-to-end feature.
+The Evidence, Analyst, and Critic agents are wired into the public mission
+workflow and can use a real provider. Search is a deterministic service rather
+than an LLM agent. Decision is provisional and Action is a placeholder, so do
+not claim the complete Research → Act product loop is implemented. The
+in-process background runner is not a durable job queue.
 
 Check [docs/ROADMAP.md](docs/ROADMAP.md) before starting work and update it only
 when a phase is genuinely complete.
@@ -108,6 +114,8 @@ generate or classify content but must not silently own business rules.
 4. API keys and OAuth credentials never enter code, fixtures, logs, events, or
    commits.
 5. External calls require timeouts, bounded retries, and graceful failure.
+   Provider or structured-output failures must remain distinguishable from a
+   genuine evidence-backed `no_viable_direction` outcome.
 6. Research loops must have explicit iteration/query limits.
 7. Demo and test modes must be deterministic and make no real external calls.
 8. Calendar or other side effects require explicit user approval before
@@ -172,7 +180,8 @@ A change is complete only when:
 
 ## Recommended task order
 
-Follow the numbered roadmap. Complete the in-progress LLM/Evidence foundations
-before wiring the Search Agent and orchestrator. Calendar integration remains
+Follow the numbered roadmap. Search, Evidence, Analyst, and Critic are now wired;
+prioritize the real Decision and Action stages, durable execution, and visible
+frontend progress without weakening provenance. Calendar integration remains
 optional and should be done only after the core research-to-action loop is
 reliable.
