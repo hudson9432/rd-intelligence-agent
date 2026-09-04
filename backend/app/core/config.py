@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
+    database_url: str = f"sqlite:///{BACKEND_DIR / 'data' / 'rd_intelligence.db'}"
+    database_echo: bool = False
+
     llm_base_url: str | None = None
     llm_api_key: SecretStr | None = None
     llm_model: str | None = None

@@ -5,8 +5,8 @@ Status values: `complete`, `next`, `planned`, `optional`.
 | Phase | Status | Deliverable |
 | --- | --- | --- |
 | 01 | complete | Repository, FastAPI health API, schemas, Next.js shell, tests |
-| 02 | next | SQLite persistence, repositories, mission/event APIs |
-| 03 | planned | arXiv and GitHub tools, normalization, deduplication, mock sources |
+| 02 | complete | SQLite persistence, repositories, mission/event APIs |
+| 03 | next | arXiv and GitHub tools, normalization, deduplication, mock sources |
 | 04 | planned | Provider-independent LLM client and deterministic mock LLM |
 | 05 | planned | Search Agent |
 | 06 | planned | Evidence Agent with strict provenance |

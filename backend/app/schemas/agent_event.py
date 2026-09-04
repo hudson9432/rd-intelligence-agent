@@ -1,27 +1,26 @@
-"""Agent activity event schema."""
+"""Agent event persistence and API contracts."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-def utc_now() -> datetime:
-    """Return a timezone-aware UTC timestamp."""
-
-    return datetime.now(UTC)
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
-class AgentEvent(BaseModel):
-    """A traceable event emitted by a workflow agent."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    id: UUID = Field(default_factory=uuid4)
+class AgentEventCreate(BaseModel):
     mission_id: UUID
     agent_name: str = Field(min_length=1, max_length=100)
     event_type: str = Field(min_length=1, max_length=100)
     message: str = Field(min_length=1)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=utc_now)
+
+
+class AgentEvent(AgentEventCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        validation_alias=AliasChoices("metadata_json", "metadata"),
+    )
+    created_at: datetime
