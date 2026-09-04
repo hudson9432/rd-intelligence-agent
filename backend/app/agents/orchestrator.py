@@ -33,6 +33,7 @@ from langgraph.graph import END, START, StateGraph
 from app.schemas.action_plan import ActionPlanCreate
 from app.schemas.analysis import PhaseCHandoff
 from app.schemas.evidence_card import EvidenceCard
+from app.schemas.search_agent import SearchAgentOutput
 from app.schemas.source_result import SourceResult
 from app.schemas.workflow import (
     WorkflowDecision,
@@ -59,11 +60,17 @@ _RECURSION_HEADROOM = 8
 
 
 class SearchStage(Protocol):
-    """Phase 05. Turns a goal or targeted queries into normalized sources."""
+    """Phase 05. Plans bounded queries and retrieves normalized sources."""
 
     def search(
-        self, *, goal: str, queries: Sequence[str], iteration: int
-    ) -> Sequence[SourceResult]: ...
+        self,
+        *,
+        mission_id: UUID,
+        goal: str,
+        missing_evidence: Sequence[str],
+        query_history: Sequence[str],
+        iteration: int,
+    ) -> SearchAgentOutput: ...
 
 
 class EvidenceStage(Protocol):
@@ -217,9 +224,6 @@ class WorkflowOrchestrator:
             if on_event is not None:
                 on_event(event)
 
-        if not state.queries:
-            state.queries = [state.goal]
-
         emit(
             self.agent_name,
             "workflow_started",
@@ -250,6 +254,7 @@ class WorkflowOrchestrator:
                 status="failed",
                 final_stage=WorkflowStage.ANALYSIS,
                 iterations_used=state.max_iterations,
+                query_history=list(state.query_history),
                 events=events,
                 error=f"The workflow graph exceeded its step limit: {error}",
             )
@@ -263,6 +268,7 @@ class WorkflowOrchestrator:
                 handoff_status=final.handoff.status if final.handoff else None,
                 decision=final.decision,
                 evidence_count=len(final.evidence),
+                query_history=list(final.query_history),
                 events=events,
                 error=final.error,
             )
@@ -274,6 +280,7 @@ class WorkflowOrchestrator:
             iterations_used=final.iteration,
             handoff_status=final.handoff.status if final.handoff else None,
             evidence_count=len(final.evidence),
+            query_history=list(final.query_history),
             decision=(
                 final.decision.model_dump(mode="json") if final.decision else None
             ),
@@ -297,6 +304,7 @@ class WorkflowOrchestrator:
             action_plan=final.action_plan,
             poc_candidates=list(final.handoff.poc_candidates) if final.handoff else [],
             evidence_count=len(final.evidence),
+            query_history=list(final.query_history),
             events=events,
         )
 
@@ -305,25 +313,41 @@ class WorkflowOrchestrator:
     def _search(self, state: WorkflowState, config: RunnableConfig) -> dict[str, Any]:
         emit = _emitter(config)
         try:
-            found = list(
-                self.stages.search.search(
-                    goal=state.goal,
-                    queries=list(state.queries),
-                    iteration=state.iteration,
-                )
+            output = self.stages.search.search(
+                mission_id=state.mission_id,
+                goal=state.goal,
+                missing_evidence=list(state.queries),
+                query_history=list(state.query_history),
+                iteration=state.iteration,
             )
         except WorkflowStageError as error:
             return _failure(WorkflowStage.SEARCH, error, emit)
 
+        queries = list(output.generated_queries)
+        found = list(output.retrieved_sources)
+        query_history = [*state.query_history, *queries]
+        emit(
+            "search",
+            "queries_generated",
+            f"Generated {len(queries)} new search query/queries.",
+            iteration=state.iteration,
+            queries=queries,
+            query_count=len(queries),
+            notes=output.notes,
+        )
         emit(
             "search",
             "sources_retrieved",
-            f"Retrieved {len(found)} source(s) for {len(state.queries)} query/queries.",
+            f"Retrieved {len(found)} source(s) for {len(queries)} query/queries.",
             iteration=state.iteration,
-            queries=list(state.queries),
+            queries=queries,
             source_count=len(found),
         )
-        return {"sources": found}
+        return {
+            "queries": queries,
+            "query_history": query_history,
+            "sources": found,
+        }
 
     def _evidence(self, state: WorkflowState, config: RunnableConfig) -> dict[str, Any]:
         emit = _emitter(config)

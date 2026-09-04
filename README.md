@@ -8,11 +8,11 @@ The intended product loop is:
 
 > Research → Evidence → Evaluate → Decide → Act
 
-The repository now runs a mission from source retrieval through Evidence,
-Analyst, and Critic agents to an evidence-backed PoC candidate. It supports a
-deterministic offline mode and an OpenAI-compatible real-model mode. Decision
-scoring and Action planning remain explicit placeholders; the project does not
-claim that those unfinished stages are model-backed agents.
+The repository now runs a mission through Search, Evidence, Analyst, and Critic
+agents to an evidence-backed PoC candidate. It supports a deterministic offline
+mode and an OpenAI-compatible real-model mode. Decision scoring and Action
+planning remain explicit placeholders; the project does not claim that those
+unfinished stages are model-backed agents.
 
 ## Project status
 
@@ -23,6 +23,7 @@ claim that those unfinished stages are model-backed agents.
 | Next.js dashboard with mission list and creation | Complete |
 | SQLite persistence and mission APIs | Complete |
 | arXiv/GitHub research source tools (`POST /research/search`) | Complete |
+| Search Agent query planning and query-history deduplication | Complete |
 | Workflow orchestrator (`POST /missions/{id}/run`) | In progress |
 | Typed structured LLM output and provider integration | Complete |
 | Analyst, Critic, and the Phase C viability gate | Complete |
@@ -199,11 +200,11 @@ The graph runs on LangGraph; routing and the re-search bound stay in
 deterministic Python, with LangGraph's step limit only as a backstop.
 
 Search, Evidence, and Analysis are real, so a run goes from the mission goal to
-retrieved sources, to persisted evidence, to a Phase C handoff, to a decision —
-offline, with `MOCK_EXTERNAL_APIS` and `MOCK_LLM` at their defaults. It stops
-at a PoC *candidate*: the Decision stage follows the Phase C gate without
-scoring, and the Action stage produces no task plan, so the run reports
-`action_plan_skipped` rather than inventing one. An unimplemented phase always
+planned queries, retrieved sources, persisted evidence, a Phase C handoff, and
+a decision — offline, with `MOCK_EXTERNAL_APIS` and `MOCK_LLM` at their
+defaults. It stops at a PoC *candidate*: the Decision stage follows the Phase C
+gate without scoring, and the Action stage produces no task plan, so the run
+reports `action_plan_skipped` rather than inventing one. An unimplemented phase always
 returns an empty result rather than plausible-looking data; see
 `backend/app/agents/pending_stages.py`.
 
@@ -244,12 +245,12 @@ direction exists.
 
 `MOCK_EXTERNAL_APIS=true` may be kept while using a real LLM. In that mode the
 sources are frozen responses previously captured from the real arXiv and GitHub
-APIs, while Evidence/Analyst/Critic cognition comes from the configured model.
-Set `MOCK_EXTERNAL_APIS=false` as well to query both source APIs live.
+APIs, while Search/Evidence/Analyst/Critic cognition comes from the configured
+model. Set `MOCK_EXTERNAL_APIS=false` as well to query both source APIs live.
 
 Free-tier providers often impose a low requests-per-minute quota. Set
 `LLM_MIN_REQUEST_INTERVAL_SECONDS=4.2` for a 15 RPM quota. The limiter is shared
-by Evidence, Analyst, and Critic clients in the process, including retry
+by Search, Evidence, Analyst, and Critic clients in the process, including retry
 attempts; paid tiers can leave it at `0`.
 
 ## Current placeholders

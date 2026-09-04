@@ -81,9 +81,10 @@ PhaseCHandoff.status is exactly one of:
   rules. No PoC candidate is emitted. Missing evidence never causes this state
   before the bounded re-search opportunity has been used.
 
-C therefore owns the content of targeted re-search and the viability gate. D
-owns loop execution, iteration limits, persistence, events, and conversion of a
-PoC candidate into an ActionPlan.
+C therefore owns identification of targeted evidence gaps and the viability
+gate. The Search Agent converts those gaps and suggested searches into final,
+history-aware queries. D owns loop execution, iteration limits, persistence,
+events, and conversion of a PoC candidate into an ActionPlan.
 
 ## Integration boundaries
 

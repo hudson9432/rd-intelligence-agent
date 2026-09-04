@@ -94,9 +94,7 @@ def stage() -> PhaseCAnalysisStage:
 
 
 def test_no_evidence_asks_for_research() -> None:
-    handoff = stage().analyze(
-        mission_goal=GOAL, evidence=[], research_exhausted=False
-    )
+    handoff = stage().analyze(mission_goal=GOAL, evidence=[], research_exhausted=False)
 
     assert handoff.status == "research_required"
     assert handoff.research_request is not None
@@ -104,9 +102,7 @@ def test_no_evidence_asks_for_research() -> None:
 
 
 def test_no_evidence_with_the_budget_spent_reports_no_viable_direction() -> None:
-    handoff = stage().analyze(
-        mission_goal=GOAL, evidence=[], research_exhausted=True
-    )
+    handoff = stage().analyze(mission_goal=GOAL, evidence=[], research_exhausted=True)
 
     assert handoff.status == "no_viable_direction"
     assert handoff.research_request is None
@@ -187,6 +183,7 @@ def test_the_whole_graph_reaches_a_poc_plan_on_real_analysis() -> None:
     assert result.action_plan is not None
     assert [event.event_type for event in result.events] == [
         "workflow_started",
+        "queries_generated",
         "sources_retrieved",
         "evidence_extracted",
         "handoff_produced",

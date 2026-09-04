@@ -60,7 +60,10 @@ def default_stages(
     shared_llm_client = llm_client or get_llm_client(resolved_settings)
 
     return WorkflowStages(
-        search=ResearchSourceSearchStage(settings=resolved_settings),
+        search=ResearchSourceSearchStage(
+            llm_client=shared_llm_client,
+            settings=resolved_settings,
+        ),
         evidence=PersistingEvidenceStage(
             session,
             llm_client=shared_llm_client,

@@ -1,15 +1,8 @@
-"""Research-source search wired as a workflow stage.
+"""Search Agent query planning and deterministic source retrieval.
 
-Phase 05. Runs the mission's current queries through `ResearchSourceService`
-and hands the orchestrator normalized, deduplicated sources.
-
-Query *authorship* is not here. Round one searches the mission goal; later
-rounds search whatever the Critic asked for, which arrives through
-`TargetedResearchRequest`. Deciding what to ask is Phase C's job under
-`docs/PHASE_C_CONTRACT.md`, so this stage only executes and merges.
-
-A source already seen in an earlier round is dropped, so a re-search round adds
-evidence rather than re-extracting what the mission already holds.
+Phase 05. The agent turns a goal or Critic-supplied evidence gaps into bounded,
+history-aware queries. This stage then executes those queries through
+`ResearchSourceService` and removes sources already seen during the run.
 """
 
 from __future__ import annotations
@@ -18,8 +11,13 @@ import asyncio
 from collections.abc import Coroutine, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
+from uuid import UUID
 
-from app.core.config import Settings
+from app.agents.orchestrator import WorkflowStageError
+from app.agents.search import SearchAgent, SearchPlanningError
+from app.core.config import Settings, get_settings
+from app.core.llm import LLMClient, LLMProviderError, get_llm_client
+from app.schemas.search_agent import SearchAgentInput, SearchAgentOutput
 from app.schemas.source_result import SourceResult, SourceType
 from app.services.research_source import ResearchSourceService
 from app.tools.dedupe import content_hash, normalize_url
@@ -64,19 +62,51 @@ class ResearchSourceSearchStage:
         self,
         service: ResearchSourceService | None = None,
         *,
+        llm_client: LLMClient | None = None,
         settings: Settings | None = None,
         sources: Sequence[SourceType] | None = None,
         max_results_per_source: int = DEFAULT_MAX_RESULTS_PER_SOURCE,
     ) -> None:
-        self._service = service or ResearchSourceService(settings)
+        resolved_settings = settings or get_settings()
+        self._service = service or ResearchSourceService(resolved_settings)
         self._sources = tuple(sources) if sources else None
         self._max_results_per_source = max_results_per_source
         self._seen: set[tuple[str, str]] = set()
+        self._agent = SearchAgent(
+            llm_client or get_llm_client(resolved_settings),
+            self,
+        )
 
     def search(
-        self, *, goal: str, queries: Sequence[str], iteration: int
-    ) -> Sequence[SourceResult]:
-        del goal, iteration  # The queries already carry both.
+        self,
+        *,
+        mission_id: UUID,
+        goal: str,
+        missing_evidence: Sequence[str],
+        query_history: Sequence[str],
+        iteration: int,
+    ) -> SearchAgentOutput:
+        try:
+            return self._agent.run(
+                SearchAgentInput(
+                    mission_id=mission_id,
+                    research_goal=goal,
+                    missing_evidence=list(missing_evidence),
+                    query_history=list(query_history),
+                    iteration=iteration,
+                )
+            )
+        except LLMProviderError as error:
+            raise WorkflowStageError(
+                "The search-query provider request failed; no query was executed."
+            ) from error
+        except SearchPlanningError as error:
+            raise WorkflowStageError(
+                f"The search-query provider returned an unusable response: {error}"
+            ) from error
+
+    def retrieve(self, queries: Sequence[str]) -> Sequence[SourceResult]:
+        """Execute planned queries and return only sources new to this run."""
 
         fresh: list[SourceResult] = []
         for query in queries:

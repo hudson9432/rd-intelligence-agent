@@ -42,11 +42,12 @@ Phases 1–2 (repository foundation and persistence) are complete:
   `AgentEvent` transitions, mission status handling, and
   `POST /missions/{id}/run`. Routing and the iteration limit remain in
   deterministic Python; LangGraph provides the runtime.
-- The workflow's Search, Evidence, and Analysis stages are real: a mission
-  runs from goal to retrieved sources, to persisted evidence, to a Phase C
-  handoff, to a decision, entirely offline. Decision is provisional and Action
-  is still a placeholder, so a run stops short of a PoC task plan and reports
-  `action_plan_skipped` rather than inventing one.
+- The workflow's Search, Evidence, and Analysis stages are real: Search plans
+  bounded, history-aware queries before deterministic retrieval; a mission then
+  runs through persisted evidence and a Phase C handoff to a decision, entirely
+  offline. Decision is provisional and Action is still a placeholder, so a run
+  stops short of a PoC task plan and reports `action_plan_skipped` rather than
+  inventing one.
 - Real-provider runs can use `POST /missions/{id}/run/async`; the in-process
   background worker uses its own database session and exposes progress and its
   terminal summary through persisted mission events.
@@ -66,9 +67,10 @@ Phase 3 research-source tools are implemented:
   frozen arXiv/GitHub responses through the live parsers. Mock responses are
   deterministic and honor source selection, per-source limits, and date filters.
 
-The Evidence, Analyst, and Critic agents are wired into the public mission
-workflow and can use a real provider. Search is a deterministic service rather
-than an LLM agent. Decision is provisional and Action is a placeholder, so do
+The Search, Evidence, Analyst, and Critic agents are wired into the public
+mission workflow and can use a real provider. Search uses the LLM only to plan
+queries; arXiv/GitHub retrieval and query-history deduplication remain bounded,
+deterministic code. Decision is provisional and Action is a placeholder, so do
 not claim the complete Research → Act product loop is implemented. The
 in-process background runner is not a durable job queue.
 

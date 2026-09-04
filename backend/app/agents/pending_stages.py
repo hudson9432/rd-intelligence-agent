@@ -6,12 +6,9 @@ external call, and — per invariant 1 in `AGENTS.md` — invent nothing: a stag
 whose phase is unbuilt returns an empty result rather than plausible-looking
 data.
 
-Analysis is no longer among them: `PhaseCAnalysisStage` runs the real
-Analyst, Critic, and viability gate. Because Search and Evidence still return
-nothing, a default run reaches that real gate with an empty evidence set,
-exhausts its re-search budget, and ends at `no_viable_direction`. That outcome
-is truthful, not a simulation of success. Replace each remaining stage as its
-phase lands.
+Search, Evidence, and Analysis are no longer placeholders in the default stage
+set. The fallback classes remain here for isolated orchestrator tests. Decision
+and Action are the remaining runtime placeholders.
 """
 
 from __future__ import annotations
@@ -22,27 +19,33 @@ from uuid import UUID
 from app.schemas.action_plan import ActionPlanCreate
 from app.schemas.analysis import PhaseCHandoff
 from app.schemas.evidence_card import EvidenceCard
+from app.schemas.search_agent import SearchAgentOutput
 from app.schemas.source_result import SourceResult
 from app.schemas.workflow import WorkflowDecision
 
 
 class PendingSearchStage:
-    """Phase 05 placeholder. The phase 03 source tools are not wired in yet."""
+    """Empty Search fallback used only by isolated orchestrator tests."""
 
     def search(
-        self, *, goal: str, queries: Sequence[str], iteration: int
-    ) -> Sequence[SourceResult]:
-        del goal, queries, iteration
-        return []
+        self,
+        *,
+        mission_id: UUID,
+        goal: str,
+        missing_evidence: Sequence[str],
+        query_history: Sequence[str],
+        iteration: int,
+    ) -> SearchAgentOutput:
+        del mission_id, goal, missing_evidence, query_history, iteration
+        return SearchAgentOutput(
+            generated_queries=[],
+            retrieved_sources=[],
+            notes="Search is not configured.",
+        )
 
 
 class PendingEvidenceStage:
-    """Phase 06 placeholder.
-
-    `EvidenceAgent` can already extract from a single source, but no service
-    deduplicates, filters, persists, and events the result, so this returns
-    nothing rather than producing unpersisted cards.
-    """
+    """Empty Evidence fallback used only by isolated orchestrator tests."""
 
     def extract(
         self, *, mission_id: UUID, goal: str, sources: Sequence[SourceResult]
@@ -58,9 +61,7 @@ class PendingDecisionStage:
     the real Decision Engine owns weighting and thresholds.
     """
 
-    def decide(
-        self, *, mission_goal: str, handoff: PhaseCHandoff
-    ) -> WorkflowDecision:
+    def decide(self, *, mission_goal: str, handoff: PhaseCHandoff) -> WorkflowDecision:
         del mission_goal
         if handoff.status == "ready_for_poc" and handoff.poc_candidates:
             candidate = handoff.poc_candidates[0]
