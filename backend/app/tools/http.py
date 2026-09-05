@@ -6,6 +6,10 @@ retry unboundedly.
 """
 
 import asyncio
+import time
+from dataclasses import dataclass, field
+from threading import Lock
+from urllib.parse import urlsplit
 
 import httpx2 as httpx
 
@@ -14,6 +18,48 @@ DEFAULT_MAX_ATTEMPTS = 3
 DEFAULT_BACKOFF_SECONDS = 0.5
 MAX_RETRY_DELAY_SECONDS = 5.0
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
+@dataclass
+class _HostPacer:
+    """Spaces requests to one host across every caller in this process.
+
+    Backoff only reacts after a host has already refused. Public source APIs
+    publish a request rate instead, and arXiv enforces its own by stalling
+    replies until they hit the read timeout, so bursts cost far more than the
+    spacing would: a throttled query burns three timeouts before failing, while
+    a paced one succeeds first time.
+
+    A slot is reserved under a plain lock and awaited outside it, so concurrent
+    callers stagger rather than queue behind one another, and the pacer works
+    whichever event loop or thread a caller happens to be on.
+    """
+
+    lock: Lock = field(default_factory=Lock)
+    next_request_at: float = 0.0
+
+    async def wait(self, interval_seconds: float) -> None:
+        if interval_seconds <= 0:
+            return
+        with self.lock:
+            now = time.monotonic()
+            start_at = max(now, self.next_request_at)
+            self.next_request_at = start_at + interval_seconds
+        delay = start_at - now
+        if delay > 0:
+            await asyncio.sleep(delay)
+
+
+_PACERS: dict[str, _HostPacer] = {}
+_PACERS_LOCK = Lock()
+
+
+def _shared_pacer(url: str) -> _HostPacer:
+    """One pacer per host, so a slow source never delays a different one."""
+
+    host = urlsplit(url).netloc
+    with _PACERS_LOCK:
+        return _PACERS.setdefault(host, _HostPacer())
 
 
 class SourceUnavailableError(Exception):
@@ -28,6 +74,7 @@ async def get_with_retry(
     headers: dict[str, str] | None = None,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     backoff_seconds: float = DEFAULT_BACKOFF_SECONDS,
+    min_request_interval_seconds: float = 0,
 ) -> httpx.Response:
     """GET `url` with a bounded number of retries on timeout or 429/5xx.
 
@@ -35,6 +82,11 @@ async def get_with_retry(
     simple exponential delay. Raises `SourceUnavailableError` once attempts
     are exhausted instead of propagating the underlying transport error, so
     callers can degrade gracefully.
+
+    `min_request_interval_seconds` spaces requests to the same host across the
+    whole process, including retries. It defaults to off so a caller supplying
+    its own transport is never slowed; production callers pass the configured
+    interval.
     """
 
     last_error: Exception | None = None
@@ -44,7 +96,10 @@ async def get_with_retry(
     if backoff_seconds < 0:
         raise ValueError("backoff_seconds must be non-negative")
 
+    pacer = _shared_pacer(url)
+
     for attempt in range(1, max_attempts + 1):
+        await pacer.wait(min_request_interval_seconds)
         try:
             response = await client.get(
                 url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT

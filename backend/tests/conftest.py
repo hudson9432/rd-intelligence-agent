@@ -17,6 +17,7 @@ os.environ["LLM_BASE_URL"] = ""
 os.environ["LLM_API_KEY"] = ""
 os.environ["LLM_MODEL"] = ""
 os.environ["LLM_MIN_REQUEST_INTERVAL_SECONDS"] = "0"
+os.environ["SOURCE_MIN_REQUEST_INTERVAL_SECONDS"] = "0"
 
 from app.db.base import Base
 from app.db.session import (

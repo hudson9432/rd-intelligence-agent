@@ -23,6 +23,7 @@ async def search_github(
     *,
     client: httpx.AsyncClient,
     token: str | None = None,
+    min_request_interval_seconds: float = 0,
 ) -> list[SourceResult]:
     """Search GitHub repositories and return normalized, deduplicated results.
 
@@ -45,6 +46,7 @@ async def search_github(
             "per_page": str(max_results),
         },
         headers=headers,
+        min_request_interval_seconds=min_request_interval_seconds,
     )
     try:
         return parse_response(response.json())
