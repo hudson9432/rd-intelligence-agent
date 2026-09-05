@@ -47,6 +47,13 @@ def claim(claim_id: str, statement: str, verdict: str = "supported") -> Evaluate
         support_strength=0.8,
         poc_testability=0.9,
         verdict=verdict,
+        resolution_status=(
+            "fatal"
+            if verdict == "refuted"
+            else "resolved"
+            if verdict == "supported"
+            else "poc_testable"
+        ),
         rationale="Measurable within a bounded PoC.",
     )
 

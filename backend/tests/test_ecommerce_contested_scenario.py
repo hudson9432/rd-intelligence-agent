@@ -21,6 +21,7 @@ from app.schemas.analysis import (
 from app.schemas.evidence_card import EvidenceCard
 from app.schemas.source_result import SourceResult
 from app.schemas.workflow import WorkflowDecision
+from app.services.opportunity_scoring import derive_evidence_strength
 from app.services.phase_c import build_phase_c_handoff
 from app.tools.arxiv import parse_feed
 
@@ -82,6 +83,19 @@ def test_ecommerce_fixture_contains_quantified_support_and_challenges() -> None:
     assert "+0.25%" in support_text
     assert "11 out of the 12" in challenge_text
     assert "popularity bias" in challenge_text
+    assert {argument["side"] for argument in scenario["arguments"]} == {
+        "support",
+        "challenge",
+    }
+    for argument in scenario["arguments"]:
+        assert argument["source_arxiv_ids"]
+        assert set(argument["source_arxiv_ids"]) <= sources.keys()
+    for question in scenario["important_questions"]:
+        assert question["disposition"] == "poc_testable"
+        assert question["test"]["metrics"]
+        assert question["test"]["controls"]
+        assert question["test"]["pass_condition"]
+        assert question["test"]["fail_condition"]
 
 
 def test_contested_ecommerce_claim_maps_every_question_to_an_action_task() -> None:
@@ -161,8 +175,10 @@ def test_contested_ecommerce_claim_maps_every_question_to_an_action_task() -> No
     assert contested
     assert contested[0].supporting_evidence_ids == support_ids
     assert contested[0].opposing_evidence_ids == challenge_ids
+    assert contested[0].resolution_status == "poc_testable"
 
     candidate = handoff.poc_candidates[0]
+    assert derive_evidence_strength(candidate) == 5
     plan = ActionAgent(MockLLMClient()).plan(
         mission_id=MISSION_ID,
         mission_goal=scenario["mission_goal"],

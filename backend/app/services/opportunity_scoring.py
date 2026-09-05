@@ -38,6 +38,16 @@ _VERDICT_AGREEMENT: dict[str, float] = {
     "refuted": 0.0,
 }
 
+#: Whether an objection prevents the team from acting. A contested claim that
+#: can be settled by the PoC is work to schedule, not evidence that the
+#: opportunity is intrinsically worse.
+_RESOLUTION_READINESS: dict[str, float] = {
+    "resolved": 1.0,
+    "poc_testable": 1.0,
+    "research_gap": 0.7,
+    "fatal": 0.0,
+}
+
 
 def to_scale(unit_value: float) -> int:
     """Map a 0–1 score onto the 1–5 scale the opportunity record uses.
@@ -53,7 +63,7 @@ def to_scale(unit_value: float) -> int:
 
 
 def evidence_agreement(assessments: Sequence[EvaluatedClaim]) -> float:
-    """How consistently the claims point the same way, from 0 to 1."""
+    """Diagnostic consistency only; this no longer penalizes opportunity value."""
 
     if not assessments:
         return 0.0
@@ -62,16 +72,27 @@ def evidence_agreement(assessments: Sequence[EvaluatedClaim]) -> float:
     ) / len(assessments)
 
 
-def derive_evidence_strength(candidate: PocCandidate) -> int:
-    """Coverage, discounted by how much the claims disagree.
+def resolution_readiness(assessments: Sequence[EvaluatedClaim]) -> float:
+    """How much claim uncertainty is resolved or assigned to a bounded PoC."""
 
-    High-confidence evidence that contradicts itself is not as strong as
-    high-confidence evidence that agrees, and coverage alone cannot see the
-    difference.
+    if not assessments:
+        return 0.0
+    return sum(
+        _RESOLUTION_READINESS.get(assessment.resolution_status, 0.0)
+        for assessment in assessments
+    ) / len(assessments)
+
+
+def derive_evidence_strength(candidate: PocCandidate) -> int:
+    """Coverage, discounted only when an objection cannot yet be handled.
+
+    Evidence disagreement remains available through ``evidence_agreement`` as
+    an audit diagnostic. It does not lower this opportunity score when the
+    disagreement is explicitly assigned to a bounded PoC.
     """
 
     return to_scale(
-        candidate.evidence_coverage * evidence_agreement(candidate.claim_assessments)
+        candidate.evidence_coverage * resolution_readiness(candidate.claim_assessments)
     )
 
 

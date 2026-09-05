@@ -14,6 +14,7 @@ from app.services.opportunity_scoring import (
     derive_poc_feasibility,
     evidence_agreement,
     overall_score,
+    resolution_readiness,
     to_scale,
 )
 
@@ -37,6 +38,15 @@ def claim(verdict: str, testability: float | None = 0.8) -> EvaluatedClaim:
         support_strength=0.8,
         poc_testability=testability,
         verdict=verdict,
+        resolution_status=(
+            "fatal"
+            if verdict == "refuted"
+            else "resolved"
+            if verdict == "supported"
+            else "poc_testable"
+            if testability is not None and testability >= 0.6
+            else "research_gap"
+        ),
         rationale="Measurable within a bounded PoC.",
     )
 
@@ -112,13 +122,27 @@ def test_agreement_discounts_contested_and_unresolved_claims() -> None:
     assert evidence_agreement([claim("refuted")]) == 0.0
 
 
-def test_evidence_strength_falls_when_the_claims_disagree() -> None:
-    """Coverage alone cannot see that the evidence contradicts itself."""
+def test_poc_testable_disagreement_does_not_reduce_opportunity_strength() -> None:
+    """A resolvable objection is PoC work, not an intrinsic value penalty."""
 
     agreeing = candidate(0.9, [claim("supported"), claim("supported")])
     conflicting = candidate(0.9, [claim("supported"), claim("contested")])
 
-    assert derive_evidence_strength(agreeing) > derive_evidence_strength(conflicting)
+    assert evidence_agreement(agreeing.claim_assessments) > evidence_agreement(
+        conflicting.claim_assessments
+    )
+    assert resolution_readiness(conflicting.claim_assessments) == 1.0
+    assert derive_evidence_strength(agreeing) == derive_evidence_strength(conflicting)
+
+
+def test_an_unresolved_research_gap_still_reduces_readiness() -> None:
+    ready = candidate(0.9, [claim("contested", 0.9)])
+    needs_research = candidate(0.9, [claim("contested", 0.2)])
+
+    assert resolution_readiness(ready.claim_assessments) > resolution_readiness(
+        needs_research.claim_assessments
+    )
+    assert derive_evidence_strength(ready) > derive_evidence_strength(needs_research)
 
 
 def test_feasibility_ignores_claims_the_reviewer_left_unscored() -> None:

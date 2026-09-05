@@ -8,6 +8,7 @@ from uuid import UUID
 
 from app.schemas.analysis import (
     AnalystOutcome,
+    ClaimResolutionStatus,
     ClaimReview,
     ClaimVerdict,
     CriticOutcome,
@@ -94,6 +95,7 @@ def build_phase_c_handoff(
         evidence_by_id=evidence_by_id,
         reviews=claim_reviews,
         strong_counterevidence=strong_counterevidence,
+        minimum_poc_testability=minimum_poc_testability,
     )
     assessments_by_direction: dict[str, list[EvaluatedClaim]] = {}
     for assessment in assessments:
@@ -174,6 +176,7 @@ def _evaluate_claims(
     evidence_by_id: dict[UUID, EvidenceCard],
     reviews: Sequence[ClaimReview],
     strong_counterevidence: float,
+    minimum_poc_testability: float,
 ) -> list[EvaluatedClaim]:
     review_by_key = _usable_reviews(
         directions=directions, evidence_by_id=evidence_by_id, reviews=reviews
@@ -189,6 +192,12 @@ def _evaluate_claims(
                 if review is not None
                 else None
             )
+            verdict = classify_claim_verdict(
+                support_strength=support,
+                counterevidence_strength=opposition,
+                strong_counterevidence=strong_counterevidence,
+            )
+            poc_testability = review.poc_testability if review is not None else None
             results.append(
                 EvaluatedClaim(
                     direction_id=direction.id,
@@ -201,13 +210,12 @@ def _evaluate_claims(
                     ),
                     support_strength=support,
                     counterevidence_strength=opposition,
-                    poc_testability=(
-                        review.poc_testability if review is not None else None
-                    ),
-                    verdict=classify_claim_verdict(
-                        support_strength=support,
-                        counterevidence_strength=opposition,
-                        strong_counterevidence=strong_counterevidence,
+                    poc_testability=poc_testability,
+                    verdict=verdict,
+                    resolution_status=classify_resolution_status(
+                        verdict=verdict,
+                        poc_testability=poc_testability,
+                        minimum_poc_testability=minimum_poc_testability,
                     ),
                     rationale=(
                         review.rationale
@@ -217,6 +225,31 @@ def _evaluate_claims(
                 )
             )
     return results
+
+
+def classify_resolution_status(
+    *,
+    verdict: ClaimVerdict,
+    poc_testability: float | None,
+    minimum_poc_testability: float = 0.6,
+) -> ClaimResolutionStatus:
+    """Classify whether uncertainty is resolved, testable, or blocking.
+
+    A counterargument is not itself a penalty. A contested or unknown claim is
+    retained when a bounded PoC can resolve it. Only refutation is immediately
+    fatal; missing or untestable material remains a research gap and follows
+    the existing bounded re-search/no-viable routing.
+    """
+
+    if not 0 <= minimum_poc_testability <= 1:
+        raise ValueError("minimum_poc_testability must be between zero and one")
+    if verdict == "supported":
+        return "resolved"
+    if verdict == "refuted":
+        return "fatal"
+    if poc_testability is not None and poc_testability >= minimum_poc_testability:
+        return "poc_testable"
+    return "research_gap"
 
 
 def _usable_reviews(

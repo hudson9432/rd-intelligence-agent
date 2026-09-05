@@ -10,9 +10,11 @@ through the exact same parsers as the live path (`app/tools/arxiv.py`,
 exact-ID capture for the contested e-commerce scenario. Its companion
 `ecommerce_recommender_scenario.json` assigns two papers to support and two to
 challenge one recommendation claim, and records the important questions the
-PoC must answer. The role assignment and questions are scenario metadata; all
-titles, abstracts, authors, dates, URLs, and reported metrics remain verbatim
-from the captured arXiv response.
+PoC must answer. Each question includes a proposed experiment, metrics,
+controls, explicit pass/fail conditions, and the provenance of those
+thresholds. The role assignment, questions, and acceptance thresholds are
+scenario metadata; all titles, abstracts, authors, dates, URLs, and reported
+source metrics remain verbatim from the captured arXiv response.
 
 ## Refreshing them
 

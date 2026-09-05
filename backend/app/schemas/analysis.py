@@ -172,6 +172,7 @@ class CriticOutcome(BaseModel):
 
 
 ClaimVerdict = Literal["supported", "contested", "unknown", "refuted"]
+ClaimResolutionStatus = Literal["resolved", "poc_testable", "research_gap", "fatal"]
 
 
 class ClaimReview(BaseModel):
@@ -197,6 +198,7 @@ class EvaluatedClaim(BaseModel):
     counterevidence_strength: UnitScore | None = None
     poc_testability: UnitScore | None = None
     verdict: ClaimVerdict
+    resolution_status: ClaimResolutionStatus
     rationale: str = Field(min_length=1)
 
 

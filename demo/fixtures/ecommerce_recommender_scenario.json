@@ -4,6 +4,26 @@
   "direction_title": "Personalized item recommendation modules",
   "claim_id": "commerce-outcomes-without-material-tradeoffs",
   "claim": "Personalized learned item recommendations can improve e-commerce click and purchase outcomes without material baseline or catalog-diversity trade-offs.",
+  "arguments": [
+    {
+      "id": "online-commerce-lift",
+      "side": "support",
+      "statement": "Production experiments report measurable click, purchase, and business-metric gains from learned recommendation or attribution systems.",
+      "source_arxiv_ids": [
+        "2108.05891",
+        "2507.15113"
+      ]
+    },
+    {
+      "id": "baseline-and-diversity-risk",
+      "side": "challenge",
+      "statement": "Reported gains may depend on weak baselines, while recommendation optimization can concentrate exposure on popular items.",
+      "source_arxiv_ids": [
+        "1911.07698",
+        "2308.01118"
+      ]
+    }
+  ],
   "sources": [
     {
       "arxiv_id": "2108.05891",
@@ -26,16 +46,51 @@
     {
       "id": "baseline-quality",
       "question": "Do the gains persist against tuned simple and personalized baselines rather than only a static configuration?",
+      "disposition": "poc_testable",
       "source_arxiv_ids": [
         "1911.07698"
-      ]
+      ],
+      "test": {
+        "design": "Randomize eligible item-detail visits across the current static configuration, a tuned simple recommender, and the learned personalized recommender.",
+        "metrics": [
+          "click-through rate",
+          "purchase-through rate"
+        ],
+        "controls": [
+          "traffic cohort",
+          "recommendation placement",
+          "catalog availability",
+          "experiment duration"
+        ],
+        "pass_condition": "The 95% confidence-interval lower bound for purchase-through lift is above zero against both baselines, with no click-through guardrail regression.",
+        "fail_condition": "The learned recommender has no positive purchase-through lower bound against the tuned simple baseline or regresses the click-through guardrail.",
+        "threshold_origin": "Scenario acceptance criterion; not a finding reported by the cited papers."
+      }
     },
     {
       "id": "catalog-diversity",
       "question": "Does optimizing click and purchase rate amplify popularity bias or reduce long-tail catalog exposure?",
+      "disposition": "poc_testable",
       "source_arxiv_ids": [
         "2308.01118"
-      ]
+      ],
+      "test": {
+        "design": "During the randomized experiment, compare exposure concentration and long-tail coverage for each recommendation treatment.",
+        "metrics": [
+          "long-tail impression share",
+          "catalog exposure Gini coefficient",
+          "purchase-through rate"
+        ],
+        "controls": [
+          "product category",
+          "inventory availability",
+          "price band",
+          "returning versus new users"
+        ],
+        "pass_condition": "Purchase-through improves while long-tail impression share falls by no more than 2% relative and exposure Gini increases by no more than 0.02 versus the current configuration.",
+        "fail_condition": "Either diversity guardrail is breached, even when purchase-through improves.",
+        "threshold_origin": "Scenario acceptance criterion; not a finding reported by the cited papers."
+      }
     }
   ]
 }

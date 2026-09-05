@@ -109,6 +109,20 @@ Each claim receives one of four verdicts:
 - unknown: support or independent review is insufficient;
 - refuted: strong counterevidence exceeds support by a material margin.
 
+Verdict and actionability are separate. Each evaluated claim also carries a
+`resolution_status`:
+
+- `resolved`: the claim is supported;
+- `poc_testable`: a contested or unknown claim can be settled by the bounded
+  PoC;
+- `research_gap`: the current evidence and PoC design cannot yet settle it;
+- `fatal`: the core claim is refuted.
+
+Evidence agreement remains visible as an audit diagnostic, but a
+`poc_testable` objection does not reduce the opportunity's evidence-strength
+score. It becomes planned validation work. Research gaps still reduce
+readiness, and fatal objections still prevent a PoC candidate.
+
 A direction is PoC-ready only when it has at least one minimally supported and
 testable core hypothesis, no core claim is refuted, and every unresolved core
 claim can be tested within the PoC. A contested direction may therefore remain

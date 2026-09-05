@@ -16,7 +16,11 @@ from app.schemas.analysis import (
     SemanticQuestionScores,
 )
 from app.schemas.evidence_card import EvidenceCard
-from app.services.phase_c import build_phase_c_handoff, classify_claim_verdict
+from app.services.phase_c import (
+    build_phase_c_handoff,
+    classify_claim_verdict,
+    classify_resolution_status,
+)
 from app.services.scoring import (
     direction_evidence_coverage,
     question_diversity,
@@ -679,6 +683,22 @@ def test_missing_counterevidence_review_is_unknown_not_negative() -> None:
     )
 
 
+def test_counterarguments_are_classified_by_resolvability() -> None:
+    assert (
+        classify_resolution_status(verdict="supported", poc_testability=0.9)
+        == "resolved"
+    )
+    assert (
+        classify_resolution_status(verdict="contested", poc_testability=0.9)
+        == "poc_testable"
+    )
+    assert (
+        classify_resolution_status(verdict="unknown", poc_testability=None)
+        == "research_gap"
+    )
+    assert classify_resolution_status(verdict="refuted", poc_testability=0.9) == "fatal"
+
+
 def test_strong_counterevidence_refutes_a_weakly_supported_claim() -> None:
     assert (
         classify_claim_verdict(
@@ -745,6 +765,7 @@ def test_contested_but_testable_claim_can_still_become_a_poc() -> None:
 
     assert handoff.status == "ready_for_poc"
     assert handoff.claim_assessments[0].verdict == "contested"
+    assert handoff.claim_assessments[0].resolution_status == "poc_testable"
 
 
 def test_no_poc_only_after_new_evidence_remains_insufficient() -> None:
