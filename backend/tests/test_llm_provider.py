@@ -10,7 +10,10 @@ from pydantic import BaseModel
 from app.core.config import Settings
 from app.core.llm import (
     DEFAULT_REQUEST_TIMEOUT_SECONDS,
+    STRUCTURED_OUTPUT_ATTEMPTS,
     LLMProviderError,
+    LLMResponseTruncatedError,
+    LLMStructuredOutputError,
     MockLLMClient,
     OpenAICompatibleLLMClient,
     get_llm_client,
@@ -362,3 +365,234 @@ def test_the_timeout_is_the_one_actually_used_for_the_request() -> None:
         "write": 45.0,
         "pool": 45.0,
     }
+
+
+class _Shape(BaseModel):
+    value: int
+
+
+def structured_client(*bodies: str) -> tuple[OpenAICompatibleLLMClient, list[str]]:
+    """A client whose provider returns each body in turn, repeating the last."""
+
+    seen: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        body = bodies[min(len(seen), len(bodies) - 1)]
+        seen.append(body)
+        return httpx.Response(200, json={"choices": [{"message": {"content": body}}]})
+
+    client = OpenAICompatibleLLMClient(
+        base_url="https://provider.test/v1",
+        api_key="secret",
+        model="m",
+        transport=httpx.MockTransport(respond),
+    )
+    return client, seen
+
+
+def test_a_response_that_misses_the_contract_is_asked_for_again() -> None:
+    """Sampling is stochastic, so one slip should not end a mission.
+
+    A live provider failed a mission after four minutes because a single
+    response of roughly twenty did not validate, while the same prompt
+    validated on every isolated repeat.
+    """
+
+    client, seen = structured_client("not json", '{"value": 7}')
+
+    result = client.complete_structured([LLMMessage(role="user", content="hi")], _Shape)
+
+    assert result.value == 7
+    assert len(seen) == 2
+
+
+def test_a_first_response_that_matches_is_not_asked_for_twice() -> None:
+    client, seen = structured_client('{"value": 1}')
+
+    client.complete_structured([LLMMessage(role="user", content="hi")], _Shape)
+
+    assert len(seen) == 1, "a conforming response must cost one call"
+
+
+def test_a_provider_that_never_conforms_still_fails() -> None:
+    """Retrying must not turn an incapable provider into an infinite wait."""
+
+    client, seen = structured_client("not json")
+
+    with pytest.raises(LLMStructuredOutputError, match="in 2 attempts"):
+        client.complete_structured([LLMMessage(role="user", content="hi")], _Shape)
+
+    assert len(seen) == STRUCTURED_OUTPUT_ATTEMPTS
+
+
+def test_the_original_validation_error_is_kept_as_the_cause() -> None:
+    """A reader needs to know which field was wrong, not only that it failed."""
+
+    client, _ = structured_client("not json")
+
+    with pytest.raises(LLMStructuredOutputError) as raised:
+        client.complete_structured([LLMMessage(role="user", content="hi")], _Shape)
+
+    assert raised.value.__cause__ is not None
+
+
+def test_the_request_is_repeated_unchanged() -> None:
+    """Feeding the validation error back invites invented values.
+
+    Invariant 1 makes a fabricated identifier worse than a failed call, so the
+    retry asks the same question rather than describing what was wrong.
+    """
+
+    bodies: list[dict] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": "not json"}}]}
+        )
+
+    client = OpenAICompatibleLLMClient(
+        base_url="https://provider.test/v1",
+        api_key="secret",
+        model="m",
+        transport=httpx.MockTransport(respond),
+    )
+    with pytest.raises(LLMStructuredOutputError):
+        client.complete_structured([LLMMessage(role="user", content="hi")], _Shape)
+
+    assert len(bodies) == 2
+    assert bodies[0]["messages"] == bodies[1]["messages"]
+
+
+def test_a_mocked_client_is_never_asked_twice() -> None:
+    """The deterministic path has nothing to re-roll."""
+
+    calls = {"n": 0}
+
+    def factory() -> _Shape:
+        calls["n"] += 1
+        return _Shape(value=3)
+
+    result = MockLLMClient().complete_structured(
+        [LLMMessage(role="user", content="hi")], _Shape, mock_factory=factory
+    )
+
+    assert result.value == 3
+    assert calls["n"] == 1
+
+
+def provider_returning(
+    content: str, *, finish_reason: str | None = "stop", **client_kwargs: object
+) -> tuple[OpenAICompatibleLLMClient, list[dict]]:
+    """A client whose provider always answers the same way."""
+
+    seen: list[dict] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"content": content}, "finish_reason": finish_reason}
+                ]
+            },
+        )
+
+    client = OpenAICompatibleLLMClient(
+        base_url="https://provider.test/v1",
+        api_key="secret",
+        model="m",
+        transport=httpx.MockTransport(respond),
+        **client_kwargs,
+    )
+    return client, seen
+
+
+def test_a_truncated_answer_is_named_rather_than_blamed_on_the_schema() -> None:
+    """The message must point at the output limit, not at the contract.
+
+    A truncated response used to reach JSON parsing and fail there, so an
+    output ceiling was reported as "the response did not match the contract" —
+    which sends an investigation toward the schema.
+    """
+
+    client, _ = provider_returning('{"value": 1', finish_reason="length")
+
+    with pytest.raises(LLMResponseTruncatedError, match="stopped before finishing"):
+        client.complete_structured([LLMMessage(role="user", content="hi")], _Shape)
+
+
+def test_a_truncated_answer_is_not_asked_for_again() -> None:
+    """Retrying reproduces the same length and truncates in the same place."""
+
+    client, seen = provider_returning('{"value": 1', finish_reason="length")
+
+    with pytest.raises(LLMResponseTruncatedError):
+        client.complete_structured([LLMMessage(role="user", content="hi")], _Shape)
+
+    assert len(seen) == 1, "a second attempt would only waste the same budget"
+
+
+def test_truncation_is_caught_on_plain_completions_too() -> None:
+    client, _ = provider_returning("half a sen", finish_reason="length")
+
+    with pytest.raises(LLMResponseTruncatedError):
+        client.complete([LLMMessage(role="user", content="hi")])
+
+
+def test_a_finished_answer_is_returned_normally() -> None:
+    client, _ = provider_returning('{"value": 4}', finish_reason="stop")
+
+    assert (
+        client.complete_structured(
+            [LLMMessage(role="user", content="hi")], _Shape
+        ).value
+        == 4
+    )
+
+
+def test_a_provider_that_reports_no_finish_reason_is_trusted() -> None:
+    """Not every OpenAI-compatible provider sends the field."""
+
+    client, _ = provider_returning('{"value": 5}', finish_reason=None)
+
+    assert (
+        client.complete_structured(
+            [LLMMessage(role="user", content="hi")], _Shape
+        ).value
+        == 5
+    )
+
+
+def test_no_output_ceiling_is_sent_unless_one_is_configured() -> None:
+    """Leaving it unset must not change what a working provider receives."""
+
+    client, seen = provider_returning('{"value": 1}')
+
+    client.complete_structured([LLMMessage(role="user", content="hi")], _Shape)
+
+    assert "max_tokens" not in seen[0]
+
+
+def test_a_configured_output_ceiling_reaches_the_provider() -> None:
+    client, seen = provider_returning('{"value": 1}', max_output_tokens=8192)
+
+    client.complete_structured([LLMMessage(role="user", content="hi")], _Shape)
+
+    assert seen[0]["max_tokens"] == 8192
+
+
+def test_the_configured_ceiling_comes_from_settings() -> None:
+    settings = Settings(
+        mock_llm=False,
+        llm_base_url="https://provider.test/v1",
+        llm_api_key="secret",
+        llm_model="m",
+        llm_max_output_tokens=8192,
+    )
+
+    client = get_llm_client(settings)
+
+    assert isinstance(client, OpenAICompatibleLLMClient)
+    assert client._max_output_tokens == 8192

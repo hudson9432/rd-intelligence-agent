@@ -32,13 +32,23 @@ class MemoryEvidenceWriter:
 
 
 class FixedLLMClient(LLMClient):
+    """Replays scripted responses, repeating the last once they run out.
+
+    A structured call may ask more than once when a response does not match
+    its contract, so a double that runs dry would fail on the attempt count
+    rather than on the behaviour under test.
+    """
+
     def __init__(self, responses: Sequence[str]) -> None:
         self.responses = list(responses)
+        self.calls = 0
 
     def complete(self, messages: list[LLMMessage]) -> LLMCompletion:
         assert messages
+        index = min(self.calls, len(self.responses) - 1)
+        self.calls += 1
         return LLMCompletion(
-            content=self.responses.pop(0),
+            content=self.responses[index],
             model="fixed",
             mocked=False,
         )
