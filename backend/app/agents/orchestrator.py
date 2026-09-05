@@ -22,6 +22,7 @@ terminates through its normal edges and the state gathered so far survives.
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 from uuid import UUID
@@ -326,6 +327,34 @@ class WorkflowOrchestrator:
         queries = list(output.generated_queries)
         found = list(output.retrieved_sources)
         query_history = [*state.query_history, *queries]
+
+        if output.source_errors:
+            # Retrieving nothing is ambiguous: the queries may have matched
+            # nothing, or a provider may have been down. Say which, so a round
+            # that found nothing because arXiv was unreachable does not read as
+            # a round that found nothing because the evidence does not exist.
+            emit(
+                "search",
+                "source_unavailable",
+                "Could not reach "
+                + ", ".join(
+                    sorted({error.source_type for error in output.source_errors})
+                )
+                + f" for this round; {len(found)} source(s) retrieved from the rest.",
+                iteration=state.iteration,
+                # One entry per distinct failure. A round runs several queries,
+                # so a source that is down fails once per query and would
+                # otherwise repeat the same line several times over.
+                failures=[
+                    {"source_type": source_type, "message": message, "queries": count}
+                    for (source_type, message), count in sorted(
+                        Counter(
+                            (error.source_type, error.message)
+                            for error in output.source_errors
+                        ).items()
+                    )
+                ],
+            )
         emit(
             "search",
             "queries_generated",

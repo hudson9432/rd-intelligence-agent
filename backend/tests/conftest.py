@@ -30,7 +30,7 @@ from app.main import create_app
 
 
 @pytest.fixture
-def session() -> Generator[Session, None, None]:
+def session() -> Generator[Session]:
     database_engine = create_database_engine("sqlite+pysqlite://", in_memory=True)
     init_db(database_engine)
     factory = create_session_factory(database_engine)
@@ -43,10 +43,10 @@ def session() -> Generator[Session, None, None]:
 
 
 @pytest.fixture
-def client(session: Session) -> Generator[TestClient, None, None]:
+def client(session: Session) -> Generator[TestClient]:
     application = create_app(initialize_database=False)
 
-    def override_database() -> Generator[Session, None, None]:
+    def override_database() -> Generator[Session]:
         yield session
 
     application.dependency_overrides[get_db] = override_database

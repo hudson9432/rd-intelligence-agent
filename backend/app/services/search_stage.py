@@ -18,7 +18,7 @@ from app.agents.search import SearchAgent, SearchPlanningError
 from app.core.config import Settings, get_settings
 from app.core.llm import LLMClient, LLMProviderError, get_llm_client
 from app.schemas.search_agent import SearchAgentInput, SearchAgentOutput
-from app.schemas.source_result import SourceResult, SourceType
+from app.schemas.source_result import SourceError, SourceResult, SourceType
 from app.services.research_source import ResearchSourceService
 from app.tools.dedupe import content_hash, normalize_url
 
@@ -72,6 +72,7 @@ class ResearchSourceSearchStage:
         self._sources = tuple(sources) if sources else None
         self._max_results_per_source = max_results_per_source
         self._seen: set[tuple[str, str]] = set()
+        self._round_errors: list[SourceError] = []
         self._agent = SearchAgent(
             llm_client or get_llm_client(resolved_settings),
             self,
@@ -86,8 +87,9 @@ class ResearchSourceSearchStage:
         query_history: Sequence[str],
         iteration: int,
     ) -> SearchAgentOutput:
+        self._round_errors = []
         try:
-            return self._agent.run(
+            output = self._agent.run(
                 SearchAgentInput(
                     mission_id=mission_id,
                     research_goal=goal,
@@ -96,6 +98,9 @@ class ResearchSourceSearchStage:
                     iteration=iteration,
                 )
             )
+            # The agent plans and retrieves; the failures surface here because
+            # only this stage talks to the source service.
+            return output.model_copy(update={"source_errors": list(self._round_errors)})
         except LLMProviderError as error:
             raise WorkflowStageError(
                 "The search-query provider request failed; no query was executed."
@@ -111,6 +116,7 @@ class ResearchSourceSearchStage:
         fresh: list[SourceResult] = []
         for query in queries:
             response = run_blocking(self._run_query(query))
+            self._round_errors.extend(response.errors)
             for result in response.results:
                 identity = _identity(result)
                 if identity in self._seen:
