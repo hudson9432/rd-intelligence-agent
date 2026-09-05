@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from app.core.config import Settings
 from app.core.llm import (
+    DEFAULT_REQUEST_TIMEOUT_SECONDS,
     LLMProviderError,
     MockLLMClient,
     OpenAICompatibleLLMClient,
@@ -279,3 +280,85 @@ def test_openai_compatible_client_raises_after_exhausting_retries() -> None:
 
     with pytest.raises(LLMProviderError):
         client.complete(_messages())
+
+
+def test_the_request_timeout_defaults_to_the_documented_value() -> None:
+    client = OpenAICompatibleLLMClient(
+        base_url="https://provider.test/v1", api_key="secret", model="m"
+    )
+
+    assert client._request_timeout_seconds == DEFAULT_REQUEST_TIMEOUT_SECONDS
+
+
+def test_a_slower_provider_can_be_given_longer() -> None:
+    """A fixed timeout is an assumption about provider speed.
+
+    Providers differ by an order of magnitude on the same prompt. A model that
+    reasons before answering spent well over the thirty-second default on the
+    analysis prompts, failing every attempt while the provider was still
+    working — a rejection would have been retried, but this was simply slow.
+    """
+
+    client = OpenAICompatibleLLMClient(
+        base_url="https://provider.test/v1",
+        api_key="secret",
+        model="m",
+        request_timeout_seconds=120.0,
+    )
+
+    assert client._request_timeout_seconds == 120.0
+
+
+@pytest.mark.parametrize("invalid", [0, -1.0])
+def test_a_non_positive_timeout_is_rejected(invalid: float) -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        OpenAICompatibleLLMClient(
+            base_url="https://provider.test/v1",
+            api_key="secret",
+            model="m",
+            request_timeout_seconds=invalid,
+        )
+
+
+def test_the_configured_timeout_reaches_the_client() -> None:
+    settings = Settings(
+        mock_llm=False,
+        llm_base_url="https://provider.test/v1",
+        llm_api_key="secret",
+        llm_model="m",
+        llm_request_timeout_seconds=90.0,
+    )
+
+    client = get_llm_client(settings)
+
+    assert isinstance(client, OpenAICompatibleLLMClient)
+    assert client._request_timeout_seconds == 90.0
+
+
+def test_the_timeout_is_the_one_actually_used_for_the_request() -> None:
+    """The setting must reach httpx, not merely be stored on the client."""
+
+    seen: dict[str, object] = {}
+
+    def record(request: httpx.Request) -> httpx.Response:
+        seen["timeout"] = request.extensions.get("timeout")
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "ok"}}]},
+        )
+
+    client = OpenAICompatibleLLMClient(
+        base_url="https://provider.test/v1",
+        api_key="secret",
+        model="m",
+        request_timeout_seconds=45.0,
+        transport=httpx.MockTransport(record),
+    )
+    client.complete([LLMMessage(role="user", content="hello")])
+
+    assert seen["timeout"] == {
+        "connect": 45.0,
+        "read": 45.0,
+        "write": 45.0,
+        "pool": 45.0,
+    }
