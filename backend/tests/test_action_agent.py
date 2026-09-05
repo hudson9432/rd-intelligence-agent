@@ -7,11 +7,13 @@ actually carries, and the checks below hold that line — including against a
 provider that returns a plausible plan grounded in nothing.
 """
 
+import json
 from uuid import uuid4
 
 import pytest
 
 from app.agents.action import (
+    MAX_SUCCESS_METRICS,
     ActionAgent,
     ActionPlanningError,
     open_items_for,
@@ -280,3 +282,29 @@ def test_the_offline_plan_is_deterministic() -> None:
         task.title for task in second.tasks_json
     ]
     assert first.estimated_effort == second.estimated_effort
+
+
+def test_a_plan_one_metric_over_the_limit_is_trimmed_not_rejected() -> None:
+    """A live provider returned seven against a bound of six.
+
+    The plan is the last step of a run that has already paid for retrieval,
+    extraction, analysis and scoring, so rejecting it there costs everything to
+    save a metric this same call is about to drop.
+    """
+
+    over_limit = MAX_SUCCESS_METRICS + 1
+    metrics = json.dumps(
+        [f"Metric {index} is recorded." for index in range(over_limit)]
+    )
+    client = scripted(
+        "["
+        + task_json("c1", title="First")
+        + ","
+        + task_json("question-1", title="Second")
+        + "]",
+        metrics=metrics,
+    )
+
+    plan = plan_with(client)
+
+    assert len(plan.success_metrics_json) == MAX_SUCCESS_METRICS
