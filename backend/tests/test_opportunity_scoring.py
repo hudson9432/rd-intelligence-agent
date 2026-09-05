@@ -122,17 +122,31 @@ def test_agreement_discounts_contested_and_unresolved_claims() -> None:
     assert evidence_agreement([claim("refuted")]) == 0.0
 
 
-def test_poc_testable_disagreement_does_not_reduce_opportunity_strength() -> None:
-    """A resolvable objection is PoC work, not an intrinsic value penalty."""
+def test_a_resolvable_objection_costs_less_than_an_unresolvable_one() -> None:
+    """Disagreement is discounted by how answerable it is, not by how loud.
 
-    agreeing = candidate(0.9, [claim("supported"), claim("supported")])
-    conflicting = candidate(0.9, [claim("supported"), claim("contested")])
+    A contested claim a PoC can settle stays well ahead of one that needs more
+    research, but it does not draw level with a claim the evidence already
+    settles: this figure is the confidence term of the score, and a direction
+    we can find out about is not one we already know about.
+    """
 
-    assert evidence_agreement(agreeing.claim_assessments) > evidence_agreement(
-        conflicting.claim_assessments
+    # One claim each: averaging several would halve the gap between them and
+    # the five-bucket output scale would then round the distinction away.
+    settled = candidate(0.9, [claim("supported")])
+    answerable = candidate(0.9, [claim("contested", 0.9)])
+    unanswerable = candidate(0.9, [claim("contested", 0.2)])
+
+    assert evidence_agreement(settled.claim_assessments) > evidence_agreement(
+        answerable.claim_assessments
     )
-    assert resolution_readiness(conflicting.claim_assessments) == 1.0
-    assert derive_evidence_strength(agreeing) == derive_evidence_strength(conflicting)
+    readiness = resolution_readiness(answerable.claim_assessments)
+    assert resolution_readiness(unanswerable.claim_assessments) < readiness < 1.0
+    assert (
+        derive_evidence_strength(unanswerable)
+        < derive_evidence_strength(answerable)
+        < derive_evidence_strength(settled)
+    )
 
 
 def test_an_unresolved_research_gap_still_reduces_readiness() -> None:
