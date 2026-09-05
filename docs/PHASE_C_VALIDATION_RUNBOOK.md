@@ -85,10 +85,10 @@ Set-Location backend
 Set-Location ..
 ```
 
-目前基準是 `277 passed`。Windows 上曾觀察到兩個偶發問題：provider
-request pacing 的毫秒級時序，以及相同 timestamp 的 AgentEvent 排序。
-若失敗，先單獨重跑該測試並保留輸出；不要直接把它歸類為此次 Phase C
-變更造成的錯誤。
+目前基準是 `284 passed`。Provider request pacing 會在短暫提早喚醒時重新
+檢查 deadline；同一 clock tick 的 AgentEvent timestamp 也會保持單調遞增。
+若這兩項仍失敗，應保留測試輸出並視為回歸，不再列為可忽略的 Windows
+偶發問題。
 
 ## 3. 啟動 API 並跑全 mock mission
 
@@ -161,9 +161,8 @@ LLM_REQUEST_TIMEOUT_SECONDS=120
 LLM_MAX_OUTPUT_TOKENS=8192
 ```
 
-重啟 backend。若只要觀察進度，可以使用非同步 endpoint；若要取得含完整
-`ActionPlan.tasks_json` 的稽核檔，請使用下面的同步 endpoint，並讓該
-PowerShell 視窗持續等待。真實模型可能執行數分鐘，這不代表逾時：
+重啟 backend，使用非同步 endpoint。回應中的 `result_url` 可在完成後取得
+包含 `ActionPlan.tasks_json` 與 Phase C audit 的完整結果：
 
 ```powershell
 $artifactDir = Join-Path $env:TEMP "rd-intelligence-phase-c"
@@ -182,16 +181,13 @@ $mission = Invoke-RestMethod `
 
 $mission.id
 
-$result = Invoke-RestMethod `
+$accepted = Invoke-RestMethod `
   -Method Post `
-  -Uri "http://localhost:8000/missions/$($mission.id)/run"
-
-$result | ConvertTo-Json -Depth 30 |
-  Set-Content (Join-Path $artifactDir "gemini-fixed-result.json")
+  -Uri "http://localhost:8000/missions/$($mission.id)/run/async"
+$accepted | ConvertTo-Json -Depth 10
 ```
 
-等待同步請求時，可在第三個 PowerShell 每 10–20 秒輪詢；不要再次送出
-`/run` 或 `/run/async`：
+每 10–20 秒輪詢；不要再次送出 `/run` 或 `/run/async`：
 
 ```powershell
 $missionId = "把上一個視窗顯示的 mission id 貼在這裡"
@@ -202,10 +198,14 @@ Invoke-RestMethod "http://localhost:8000/missions/$missionId" |
 $events = Invoke-RestMethod "http://localhost:8000/missions/$missionId/events"
 $events | ConvertTo-Json -Depth 30 |
   Set-Content (Join-Path $env:TEMP "rd-intelligence-phase-c\gemini-fixed-events.json")
+
+$result = Invoke-RestMethod "http://localhost:8000/missions/$missionId/result"
+$result | ConvertTo-Json -Depth 30 |
+  Set-Content (Join-Path $env:TEMP "rd-intelligence-phase-c\gemini-fixed-result.json")
 ```
 
 直到 mission status 為 `completed` 或 `failed`。完成後，最後一個
-`workflow_completed` event 的 `metadata` 與同步 endpoint 的完整 result
+`workflow_completed` event 的 `metadata` 與 result endpoint 的完整結果
 是本次主要報告資料，應保存為測試 artifact。需要特別檢查：
 
 - 不因模型產生未知 evidence ID 而讓整個 mission 崩潰；無效項目應被丟棄，
@@ -226,9 +226,8 @@ MOCK_EXTERNAL_APIS=false
 ```
 
 保留上一節的 Gemini 設定。若有 GitHub token，可在本機設定
-`GITHUB_TOKEN`；沒有也能跑，但更容易碰到搜尋額度。重啟 backend 後建立。
-這裡同樣使用同步 endpoint，以便保存完整結果；另開 PowerShell 輪詢
-events 來看階段進度：
+`GITHUB_TOKEN`；沒有也能跑，但更容易碰到搜尋額度。重啟 backend 後建立，
+並使用非同步 endpoint：
 
 ```powershell
 $artifactDir = Join-Path $env:TEMP "rd-intelligence-phase-c"
@@ -247,16 +246,21 @@ $mission = Invoke-RestMethod `
 
 $mission.id
 
-$result = Invoke-RestMethod `
+$accepted = Invoke-RestMethod `
   -Method Post `
-  -Uri "http://localhost:8000/missions/$($mission.id)/run"
-
-$result | ConvertTo-Json -Depth 30 |
-  Set-Content (Join-Path $artifactDir "gemini-live-ecommerce-result.json")
+  -Uri "http://localhost:8000/missions/$($mission.id)/run/async"
+$accepted | ConvertTo-Json -Depth 10
 ```
 
-使用上一節的輪詢方式保存 events。這是探索性真實資料測試，因此不要求
+使用上一節的輪詢方式保存 events，完成後從 `result_url` 取得結果並保存為
+`gemini-live-ecommerce-result.json`。這是探索性真實資料測試，因此不要求
 方向名稱一定是「個人化推薦」，但報告至少要列出：
+
+```powershell
+$result = Invoke-RestMethod "http://localhost:8000/missions/$missionId/result"
+$result | ConvertTo-Json -Depth 30 |
+  Set-Content (Join-Path $env:TEMP "rd-intelligence-phase-c\gemini-live-ecommerce-result.json")
+```
 
 - A 階段每輪 queries、實際抓到的 source 數量與來源失敗。
 - B 階段每輪 extracted evidence 數量與累計數量。
@@ -291,13 +295,11 @@ $result | ConvertTo-Json -Depth 30 |
 
 ## 目前已知的觀測限制
 
-同步終端 result 可看到 PoC candidate、claim 的正反 evidence IDs、verdict、
-resolution status、unresolved questions 與 ActionPlan。非同步流程目前只能
-從 events 取得 candidate 與 ActionPlan 摘要，沒有 `GET /result` 可取回完整
-tasks；此外，兩種模式都尚未把
-`EvidenceSufficiencyReport.assessments`、所有 rejected Critic questions，
-以及每一張被排除 EvidenceCard 的完整內容都暴露在 mission result API。
+`GET /missions/{id}/result` 現在可看到完整 evidence、support/challenge/excluded
+分類、PoC candidate、claim 的正反 evidence IDs、verdict、resolution status、
+unresolved questions 與 ActionPlan。
 
-因此這一輪可用固定測試驗證「哪些 evidence 被分到 support/challenge pool」；
-真實 mission 報告只能就 API 已保存的 IDs 與事件稽核。補齊完整 audit report
-屬於後續修改，不應在執行本手冊時臨時改 contract。
+仍未保存的是生成後遭淘汰的所有 Critic candidate questions，以及無法套用的
+LLM 原始輸出。這些項目目前只能由單元測試驗證丟棄規則，不能從完成後的
+mission result 重建；若產品需要逐項 model-output 稽核，必須另訂安全的事件
+contract，且不得把 prompt、API key 或未驗證的來源內容直接寫進 log。

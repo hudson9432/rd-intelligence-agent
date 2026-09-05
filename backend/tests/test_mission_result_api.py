@@ -71,7 +71,18 @@ def test_ecommerce_mission_returns_an_auditable_result(client: TestClient) -> No
     source_ids = {item["id"] for item in result["sources"]}
     assert {item["source_id"] for item in result["evidence"]} <= source_ids
     assert set(audit["accepted_evidence_ids"]) <= evidence_ids
-    assert {item["evidence_id"] for item in audit["excluded_evidence"]} <= evidence_ids
+    assert set(audit["support_eligible_evidence_ids"]) <= evidence_ids
+    assert set(audit["challenge_eligible_evidence_ids"]) <= evidence_ids
+    assert set(audit["challenge_only_evidence_ids"]) == (
+        set(audit["challenge_eligible_evidence_ids"])
+        - set(audit["support_eligible_evidence_ids"])
+    )
+    excluded_ids = {item["evidence_id"] for item in audit["excluded_evidence"]}
+    assert excluded_ids == evidence_ids - set(audit["accepted_evidence_ids"])
+    assert all(
+        not item["eligible"] and not item["challenge_eligible"]
+        for item in audit["excluded_evidence"]
+    )
     assert set(audit["supporting_evidence_ids"]) <= evidence_ids
     assert set(audit["opposing_evidence_ids"]) <= evidence_ids
 
@@ -79,7 +90,6 @@ def test_ecommerce_mission_returns_an_auditable_result(client: TestClient) -> No
     assert sum(verdict_counts.values()) == len(result["handoff"]["claim_assessments"])
     assert {item["code"] for item in audit["findings"]} == {
         "all_claims_unknown",
-        "most_evidence_excluded",
         "no_counterevidence",
         "no_result_bearing_evidence",
     }

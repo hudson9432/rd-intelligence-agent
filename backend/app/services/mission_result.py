@@ -122,13 +122,27 @@ def _build_audit(
         return None
 
     sufficiency = handoff.evidence_sufficiency
-    accepted_ids = (
+    support_ids = (
         [item.evidence_id for item in sufficiency.assessments if item.eligible]
         if sufficiency
         else []
     )
+    challenge_ids = (
+        [
+            item.evidence_id
+            for item in sufficiency.assessments
+            if item.challenge_eligible
+        ]
+        if sufficiency
+        else []
+    )
+    support_id_set = set(support_ids)
     excluded = (
-        [item for item in sufficiency.assessments if not item.eligible]
+        [
+            item
+            for item in sufficiency.assessments
+            if not item.eligible and not item.challenge_eligible
+        ]
         if sufficiency
         else []
     )
@@ -155,7 +169,14 @@ def _build_audit(
         phase_c_status=handoff.status,
         phase_c_reason=handoff.reason,
         evidence_sufficiency=sufficiency,
-        accepted_evidence_ids=accepted_ids,
+        support_eligible_evidence_ids=support_ids,
+        challenge_eligible_evidence_ids=challenge_ids,
+        challenge_only_evidence_ids=[
+            evidence_id
+            for evidence_id in challenge_ids
+            if evidence_id not in support_id_set
+        ],
+        accepted_evidence_ids=_unique([*support_ids, *challenge_ids]),
         excluded_evidence=excluded,
         supporting_evidence_ids=_unique(
             evidence_id
@@ -201,13 +222,20 @@ def _audit_findings(
     if (
         sufficiency is not None
         and sufficiency.total_evidence_count > 0
-        and sufficiency.effective_evidence_count * 2 < sufficiency.total_evidence_count
+        and sum(
+            item.eligible or item.challenge_eligible for item in sufficiency.assessments
+        )
+        * 2
+        < sufficiency.total_evidence_count
     ):
         findings.append(
             AuditFinding(
                 severity="warning",
                 code="most_evidence_excluded",
-                message="More than half of the collected evidence was excluded.",
+                message=(
+                    "More than half of the collected evidence was excluded from "
+                    "both support and challenge use."
+                ),
             )
         )
     settled_count = (

@@ -44,6 +44,9 @@ class MissionAuditReport(BaseModel):
     phase_c_status: str
     phase_c_reason: str
     evidence_sufficiency: EvidenceSufficiencyReport | None = None
+    support_eligible_evidence_ids: list[UUID] = Field(default_factory=list)
+    challenge_eligible_evidence_ids: list[UUID] = Field(default_factory=list)
+    challenge_only_evidence_ids: list[UUID] = Field(default_factory=list)
     accepted_evidence_ids: list[UUID] = Field(default_factory=list)
     excluded_evidence: list[EvidenceEligibility] = Field(default_factory=list)
     supporting_evidence_ids: list[UUID] = Field(default_factory=list)
