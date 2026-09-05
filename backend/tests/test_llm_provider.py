@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from app.core.config import Settings
 from app.core.llm import (
     DEFAULT_REQUEST_TIMEOUT_SECONDS,
+    RETRY_BACKOFF_MAX_SECONDS,
     STRUCTURED_OUTPUT_ATTEMPTS,
     LLMProviderError,
     LLMResponseTruncatedError,
@@ -93,6 +94,7 @@ def test_openai_compatible_client_parses_successful_response() -> None:
         )
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://example.test/v1",
         api_key="sk-test",
         model="test-model",
@@ -120,6 +122,7 @@ def test_structured_completion_requests_json_mode_and_accepts_a_json_fence() -> 
         )
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://example.test/v1",
         api_key="sk-test",
         model="test-model",
@@ -153,6 +156,7 @@ def test_openai_compatible_client_retries_then_succeeds() -> None:
         return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://example.test/v1",
         api_key="sk-test",
         model="test-model",
@@ -178,6 +182,7 @@ def test_openai_compatible_clients_share_configured_request_pacing() -> None:
 
     transport = httpx.MockTransport(handler)
     first = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://paced.example.test/v1",
         api_key="sk-test",
         model="paced-model",
@@ -185,6 +190,7 @@ def test_openai_compatible_clients_share_configured_request_pacing() -> None:
         transport=transport,
     )
     second = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://paced.example.test/v1",
         api_key="sk-test",
         model="paced-model",
@@ -217,6 +223,7 @@ def test_openai_compatible_client_retries_transient_failures(failure: str) -> No
         return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://example.test/v1",
         api_key="sk-test",
         model="test-model",
@@ -236,6 +243,7 @@ def test_openai_compatible_client_retries_malformed_success_response() -> None:
         return httpx.Response(200, json={"choices": []})
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://example.test/v1",
         api_key="sk-test",
         model="test-model",
@@ -257,6 +265,7 @@ def test_openai_compatible_client_does_not_retry_authentication_error() -> None:
         return httpx.Response(401, json={"error": "unauthorized"})
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://example.test/v1",
         api_key="sk-test",
         model="test-model",
@@ -275,6 +284,7 @@ def test_openai_compatible_client_raises_after_exhausting_retries() -> None:
         return httpx.Response(500, json={"error": "down"})
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://example.test/v1",
         api_key="sk-test",
         model="test-model",
@@ -287,7 +297,10 @@ def test_openai_compatible_client_raises_after_exhausting_retries() -> None:
 
 def test_the_request_timeout_defaults_to_the_documented_value() -> None:
     client = OpenAICompatibleLLMClient(
-        base_url="https://provider.test/v1", api_key="secret", model="m"
+        retry_backoff_seconds=0,
+        base_url="https://provider.test/v1",
+        api_key="secret",
+        model="m",
     )
 
     assert client._request_timeout_seconds == DEFAULT_REQUEST_TIMEOUT_SECONDS
@@ -303,6 +316,7 @@ def test_a_slower_provider_can_be_given_longer() -> None:
     """
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://provider.test/v1",
         api_key="secret",
         model="m",
@@ -316,6 +330,7 @@ def test_a_slower_provider_can_be_given_longer() -> None:
 def test_a_non_positive_timeout_is_rejected(invalid: float) -> None:
     with pytest.raises(ValueError, match="must be positive"):
         OpenAICompatibleLLMClient(
+            retry_backoff_seconds=0,
             base_url="https://provider.test/v1",
             api_key="secret",
             model="m",
@@ -351,6 +366,7 @@ def test_the_timeout_is_the_one_actually_used_for_the_request() -> None:
         )
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://provider.test/v1",
         api_key="secret",
         model="m",
@@ -382,6 +398,7 @@ def structured_client(*bodies: str) -> tuple[OpenAICompatibleLLMClient, list[str
         return httpx.Response(200, json={"choices": [{"message": {"content": body}}]})
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://provider.test/v1",
         api_key="secret",
         model="m",
@@ -452,6 +469,7 @@ def test_the_request_is_repeated_unchanged() -> None:
         )
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://provider.test/v1",
         api_key="secret",
         model="m",
@@ -500,6 +518,7 @@ def provider_returning(
         )
 
     client = OpenAICompatibleLLMClient(
+        retry_backoff_seconds=0,
         base_url="https://provider.test/v1",
         api_key="secret",
         model="m",
@@ -596,3 +615,50 @@ def test_the_configured_ceiling_comes_from_settings() -> None:
 
     assert isinstance(client, OpenAICompatibleLLMClient)
     assert client._max_output_tokens == 8192
+
+
+def _backoff_client(**overrides: object) -> OpenAICompatibleLLMClient:
+    return OpenAICompatibleLLMClient(
+        base_url="https://example.test/v1",
+        api_key="sk-test",
+        model="test-model",
+        **overrides,  # type: ignore[arg-type]
+    )
+
+
+def test_each_retry_waits_longer_than_the_last() -> None:
+    """Retries spaced evenly land back inside the window that refused them."""
+
+    client = _backoff_client(retry_backoff_seconds=4.0)
+
+    delays = [client._retry_delay(attempt, None) for attempt in range(3)]
+
+    assert delays == [4.0, 8.0, 16.0]
+
+
+def test_a_provider_that_says_when_to_return_is_believed() -> None:
+    """Retry-After comes from the side that knows when the window reopens."""
+
+    client = _backoff_client(retry_backoff_seconds=4.0)
+    response = httpx.Response(429, headers={"Retry-After": "7"})
+
+    assert client._retry_delay(0, response) == 7.0
+
+
+def test_an_unreadable_retry_after_falls_back_to_the_computed_wait() -> None:
+    """The HTTP-date form is not parsed; a wrong clock would wait wrongly."""
+
+    client = _backoff_client(retry_backoff_seconds=4.0)
+    response = httpx.Response(
+        429, headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}
+    )
+
+    assert client._retry_delay(0, response) == 4.0
+
+
+def test_the_wait_is_capped_so_a_run_cannot_stall_indefinitely() -> None:
+    client = _backoff_client(retry_backoff_seconds=4.0)
+    response = httpx.Response(429, headers={"Retry-After": "9000"})
+
+    assert client._retry_delay(9, None) == RETRY_BACKOFF_MAX_SECONDS
+    assert client._retry_delay(0, response) == RETRY_BACKOFF_MAX_SECONDS

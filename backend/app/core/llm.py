@@ -31,6 +31,18 @@ assumption about provider speed baked into a client that claims to be
 provider-independent.
 """
 MAX_ATTEMPTS = 3
+
+RETRY_BACKOFF_BASE_SECONDS = 4.0
+RETRY_BACKOFF_MAX_SECONDS = 30.0
+"""How long to wait before asking a failing provider again.
+
+A rate limit is a request to come back later, and retries spaced only by the
+steady-state pacing land inside the same window that rejected the first
+attempt: three refusals one second apart end a run that one pause would have
+saved. The provider's own Retry-After is preferred when it sends one, because
+it knows when the window reopens and this does not.
+"""
+
 STRUCTURED_OUTPUT_ATTEMPTS = 2
 """How many times to ask before giving up on a contract-conforming response.
 
@@ -223,16 +235,20 @@ class OpenAICompatibleLLMClient(LLMClient):
         min_request_interval_seconds: float = 0,
         request_timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
         max_output_tokens: int | None = None,
+        retry_backoff_seconds: float = RETRY_BACKOFF_BASE_SECONDS,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         if request_timeout_seconds <= 0:
             raise ValueError("request_timeout_seconds must be positive")
+        if retry_backoff_seconds < 0:
+            raise ValueError("retry_backoff_seconds cannot be negative")
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._model = model
         self._request_timeout_seconds = request_timeout_seconds
         self._max_output_tokens = max_output_tokens
         self._min_request_interval_seconds = min_request_interval_seconds
+        self._retry_backoff_seconds = retry_backoff_seconds
         self._transport = transport
         self._pacer = _shared_pacer(self._base_url, self._model)
 
@@ -243,6 +259,27 @@ class OpenAICompatibleLLMClient(LLMClient):
         return self._request(
             messages,
             response_format={"type": "json_object"},
+        )
+
+    def _retry_delay(self, attempt: int, response: httpx.Response | None) -> float:
+        """How long to wait before the next attempt, in seconds.
+
+        The provider's own Retry-After wins when it sends a plain number of
+        seconds. The HTTP-date form is ignored rather than parsed: getting the
+        clock skew wrong would wait for the wrong length, and the computed
+        backoff is already a safe answer.
+        """
+
+        if not self._retry_backoff_seconds:
+            return 0.0
+        if response is not None:
+            header = response.headers.get("retry-after", "")
+            try:
+                return min(max(float(header), 0.0), RETRY_BACKOFF_MAX_SECONDS)
+            except ValueError:
+                pass
+        return min(
+            self._retry_backoff_seconds * (2**attempt), RETRY_BACKOFF_MAX_SECONDS
         )
 
     def _request(
@@ -262,10 +299,20 @@ class OpenAICompatibleLLMClient(LLMClient):
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
         last_error: Exception | None = None
+        retry_delay = 0.0
         with httpx.Client(
             timeout=self._request_timeout_seconds, transport=self._transport
         ) as client:
-            for _ in range(MAX_ATTEMPTS):
+            for attempt in range(MAX_ATTEMPTS):
+                if retry_delay:
+                    logger.warning(
+                        "Provider request failed; waiting %.1fs before attempt %d "
+                        "of %d",
+                        retry_delay,
+                        attempt + 1,
+                        MAX_ATTEMPTS,
+                    )
+                    time.sleep(retry_delay)
                 try:
                     self._pacer.wait(self._min_request_interval_seconds)
                     response = client.post(
@@ -291,6 +338,7 @@ class OpenAICompatibleLLMClient(LLMClient):
                             "LLM provider rejected the request"
                         ) from error
                     last_error = error
+                    retry_delay = self._retry_delay(attempt, error.response)
                     continue
                 except (
                     httpx.HTTPError,
@@ -299,6 +347,7 @@ class OpenAICompatibleLLMClient(LLMClient):
                     IndexError,
                 ) as error:
                     last_error = error
+                    retry_delay = self._retry_delay(attempt, None)
                     continue
                 return LLMCompletion(content=content, model=self._model, mocked=False)
 
