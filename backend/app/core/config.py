@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     llm_base_url: str | None = None
     llm_api_key: SecretStr | None = None
     llm_model: str | None = None
+    github_token: SecretStr | None = None
 
     mock_llm: bool = True
     mock_external_apis: bool = True

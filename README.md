@@ -11,8 +11,8 @@ The intended product loop is:
 This repository contains the **phase 1–2 foundation**: a FastAPI backend,
 SQLite persistence and mission APIs, plus a Next.js dashboard shell. It also
 includes early provider-independent LLM and provenance-safe Evidence extraction
-components for parallel development. Research providers and the end-to-end
-agent workflow remain forthcoming.
+components for parallel development. arXiv/GitHub research tools are available;
+the end-to-end agent workflow remains forthcoming.
 
 ## Project status
 
@@ -21,9 +21,12 @@ agent workflow remain forthcoming.
 | Repository and local environments | Complete |
 | FastAPI health API and initial schemas | Complete |
 | Next.js dashboard shell | Complete |
+| Frontend mission list and creation wired to the mission API | Complete |
 | SQLite persistence and mission APIs | Complete |
+| arXiv/GitHub research source tools (`POST /research/search`) | Complete |
+| Workflow orchestrator (`POST /missions/{id}/run`) | In progress |
 | LLM provider and Evidence extraction foundations | In progress |
-| Research tools and end-to-end agent workflow | Planned |
+| End-to-end agent workflow | Planned |
 | Deterministic offline demo | Planned |
 
 See [the implementation roadmap](docs/ROADMAP.md) for the ordered delivery
@@ -43,8 +46,8 @@ phases and [the architecture guide](docs/ARCHITECTURE.md) for system boundaries.
 │   │   ├── prompts/      # Versioned LLM prompts
 │   │   ├── schemas/      # Pydantic API/domain schemas
 │   │   ├── repositories/ # Typed persistence operations
-│   │   ├── services/     # Mission application service
-│   │   └── tools/        # Placeholder: deterministic source tools
+│   │   ├── services/     # Mission and research-source use cases
+│   │   └── tools/        # arXiv, GitHub, HTTP retry, and dedupe tools
 │   ├── tests/
 │   ├── .env.example
 │   └── requirements.txt
@@ -53,7 +56,7 @@ phases and [the architecture guide](docs/ARCHITECTURE.md) for system boundaries.
 │   ├── components/
 │   ├── lib/
 │   └── types/
-├── demo/                 # Placeholder: offline demo fixtures
+├── demo/                 # fixtures/: frozen arXiv/GitHub responses for mock mode
 ├── docs/                 # Architecture and implementation roadmap
 ├── AGENTS.md             # Required context and invariants for coding agents
 └── CONTRIBUTING.md       # Branch, test, and pull-request workflow
@@ -116,11 +119,14 @@ In a separate terminal:
 
 ```bash
 cd frontend
+cp .env.example .env.local
 npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. For production verification, run:
+Open <http://localhost:3000>. The dashboard reads and creates missions through
+the backend, so start the API first; if it is unreachable the page renders a
+degraded state instead of failing. For production verification, run:
 
 ```bash
 npm run lint
@@ -145,19 +151,65 @@ the populated `.env` file or API keys.
 | `LLM_API_KEY` | Secret provider credential | empty |
 | `LLM_MODEL` | Provider model name | empty |
 | `MOCK_LLM` | Use the deterministic, offline LLM client | `true` |
-| `MOCK_EXTERNAL_APIS` | Future deterministic source mode | `true` |
+| `GITHUB_TOKEN` | Optional GitHub API credential for higher rate limits | empty |
+| `MOCK_EXTERNAL_APIS` | Replay deterministic arXiv/GitHub fixtures | `true` |
 | `DEMO_MODE` | Future offline end-to-end demo mode | `false` |
+
+Frontend configuration lives in `frontend/.env.example`. `API_BASE_URL` is read
+on the server only and is never exposed to the browser, so it must not carry the
+`NEXT_PUBLIC_` prefix.
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `API_BASE_URL` | Backend base URL used by Server Components and Actions | `http://127.0.0.1:8000` |
+
+## Research source search
+
+`POST /research/search` queries arXiv and GitHub concurrently, normalizes and
+deduplicates the combined results, and reports a single unavailable source in
+`errors` instead of failing the request:
+
+```bash
+curl -X POST http://localhost:8000/research/search \
+  -H "Content-Type: application/json" \
+  -d '{"query":"transformers","sources":["arxiv","github"],"max_results_per_source":5}'
+```
+
+With `MOCK_EXTERNAL_APIS=true` (the default), it replays the fixed responses in
+`demo/fixtures/` through the same parsers as the live path, so mock and real
+output are structurally identical.
+
+## Running a mission workflow
+
+`POST /missions/{mission_id}/run` executes the mission graph and records every
+stage transition as an `AgentEvent`:
+
+```bash
+curl -X POST http://localhost:8000/missions/{mission_id}/run
+curl http://localhost:8000/missions/{mission_id}/events
+```
+
+The graph runs on LangGraph; routing and the re-search bound stay in
+deterministic Python, with LangGraph's step limit only as a backstop. The
+graph, its loop, its event stream, and its Analysis stage are real — Analysis
+runs the Analyst, the Critic, and the Phase C viability gate. Search,
+Evidence, Decision, and Action are not built yet: an unimplemented phase returns an empty
+result rather than invented data, so a run with the default stage set
+truthfully ends at `no_viable_direction`. Replace a stage as its phase lands;
+see `backend/app/agents/pending_stages.py`.
 
 ## Current placeholders
 
-- `backend/app/agents`: Orchestrator, Search, Analyst, Critic, and Action agents;
-  Evidence extraction exists but is not yet wired to persistence and events.
-- `backend/app/tools`: deterministic external research-source tools.
-- Most `backend/app/services` modules beyond the mission service.
+- `backend/app/agents/pending_stages.py`: the Search, Evidence, Decision, and
+  Action workflow stages. The orchestrator graph and its Analysis stage are
+  implemented; those four are not.
+- Evidence extraction exists but is not yet wired to persistence and events.
+- Most `backend/app/services` modules beyond mission and research-source services.
 - Prompts beyond the initial Evidence extraction prompt.
-- `docs` and `demo`: architecture notes and deterministic demo fixtures.
-- The dashboard's **New Research Mission** action remains disabled until the
-  frontend workflow phase connects it to the implemented mission API.
+- `demo`: research-source fixtures exist; the complete offline scenario remains
+  planned.
+- The dashboard lists and creates missions, but evidence, decision, and action
+  views still require the agent workflow phases.
 
 ## Collaborating
 
@@ -165,8 +217,7 @@ Before implementing a task:
 
 1. Read [AGENTS.md](AGENTS.md), including its product invariants and definition
    of done. Coding agents must also obey any nested `AGENTS.md` files.
-2. Review [the roadmap](docs/ROADMAP.md) and choose a scoped GitHub issue. The
-   next planned phase is arXiv and GitHub research-source tools.
+2. Review [the roadmap](docs/ROADMAP.md) and choose a scoped GitHub issue.
 3. Create a focused branch, avoid overlapping ownership, and update backend and
    frontend contracts together when a schema changes.
 4. Follow [CONTRIBUTING.md](CONTRIBUTING.md) and open a pull request using the
@@ -188,9 +239,9 @@ used to assist with scaffolding, implementation, tests, documentation, and
 repository operations. All changes remain visible in Git history.
 
 Current third-party foundations include Python, FastAPI, Pydantic, SQLAlchemy,
-SQLite, Next.js, React, TypeScript, and their locked package dependencies. Live
-research sources, model providers, datasets, generated media, and sponsor tools
-must be added to this disclosure when introduced.
+SQLite, LangGraph, Next.js, React, TypeScript, arXiv, GitHub, and their locked
+package dependencies. Live model providers, datasets, generated media, and
+sponsor tools must be added to this disclosure when introduced.
 
 ## License
 
