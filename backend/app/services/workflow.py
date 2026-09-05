@@ -47,11 +47,7 @@ def default_stages(
     llm_client: LLMClient | None = None,
     settings: Settings | None = None,
 ) -> WorkflowStages:
-    """The current stage set.
-
-    Search, Evidence, and Analysis are real. Decision and Action are still
-    placeholders; see `app.agents.pending_stages` for what each does and does
-    not do.
+    """The current stage set: every stage is model-backed.
 
     The search stage is built per call because it remembers which sources a
     run has already seen, which must not leak between missions.
@@ -64,6 +60,7 @@ def default_stages(
         search=ResearchSourceSearchStage(
             llm_client=shared_llm_client,
             settings=resolved_settings,
+            max_results_per_source=resolved_settings.search_max_results_per_source,
         ),
         evidence=PersistingEvidenceStage(
             session,
@@ -87,13 +84,25 @@ class WorkflowService:
         session: Session,
         *,
         stages: WorkflowStages | None = None,
-        max_iterations: int = DEFAULT_MAX_ITERATIONS,
+        max_iterations: int | None = None,
+        settings: Settings | None = None,
     ) -> None:
+        resolved_settings = settings or get_settings()
         self.missions = MissionService(session)
         self.events = AgentEventRepository(session)
         self.action_plans = ActionPlanRepository(session)
-        self.stages = stages if stages is not None else default_stages(session)
-        self.max_iterations = max_iterations
+        self.stages = (
+            stages
+            if stages is not None
+            else default_stages(session, settings=resolved_settings)
+        )
+        # An explicit argument still wins, so a caller that knows what it wants
+        # is never overridden by the environment.
+        self.max_iterations = (
+            max_iterations
+            if max_iterations is not None
+            else resolved_settings.workflow_max_iterations
+        )
 
     def claim_run(self, mission_id: UUID | str) -> str:
         """Mark a mission running before synchronous or background execution."""
