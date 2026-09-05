@@ -42,13 +42,12 @@ Phases 1–2 (repository foundation and persistence) are complete:
   `AgentEvent` transitions, mission status handling, and
   `POST /missions/{id}/run`. Routing and the iteration limit remain in
   deterministic Python; LangGraph provides the runtime.
-- The workflow's Search, Evidence, and Analysis stages are real: Search plans
-  bounded, history-aware queries before deterministic retrieval; a mission then
-  runs through persisted evidence and a Phase C handoff to a decision, entirely
-  offline, and Action turns the selected candidate into a stored PoC task plan.
-  Every task must name an open item the candidate carries, so a plan cannot be
-  a generic checklist. Only Decision is still provisional: it follows the Phase
-  C gate without scoring anything.
+- All five workflow stages are real: Search plans bounded, history-aware
+  queries before deterministic retrieval; a mission runs through persisted
+  evidence and a Phase C handoff to scored opportunities and a decision,
+  entirely offline; and Action turns the selected candidate into a stored PoC
+  task plan. Every task must name an open item the candidate carries, so a plan
+  cannot be a generic checklist.
 - Real-provider runs can use `POST /missions/{id}/run/async`; the in-process
   background worker uses its own database session and exposes progress and its
   terminal summary through persisted mission events.
@@ -73,9 +72,11 @@ mission workflow and can use a real provider. Search uses the LLM only to plan
 queries; arXiv/GitHub retrieval and query-history deduplication remain bounded,
 deterministic code. Action plans the PoC, but identifiers, dependency
 resolution, effort aggregation, and the task ceiling stay in code rather than
-being taken from the model. Decision is still provisional, so do not claim the
-decision itself is scored. The in-process background runner is not a durable
-job queue.
+being taken from the model. Decision scores every candidate on six dimensions,
+four rated by a model against supplied evidence and two derived in code, with
+the combining formula in code. Read that score as merit per unit of difficulty
+and alongside the six dimensions, not as a measurement in its own right. The
+in-process background runner is not a durable job queue.
 
 Check [docs/ROADMAP.md](docs/ROADMAP.md) before starting work and update it only
 when a phase is genuinely complete.
@@ -187,8 +188,8 @@ A change is complete only when:
 
 ## Recommended task order
 
-Follow the numbered roadmap. Search, Evidence, Analyst, Critic, and Action are
-now wired; prioritize the real Decision stage, durable execution, and visible
-frontend progress without weakening provenance. Calendar integration remains
+Follow the numbered roadmap. All five workflow stages are now wired; prioritize
+durable execution, visible frontend progress, and the offline demo without
+weakening provenance. Calendar integration remains
 optional and should be done only after the core research-to-action loop is
 reliable.
