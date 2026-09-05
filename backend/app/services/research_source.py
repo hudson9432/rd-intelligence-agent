@@ -27,6 +27,13 @@ from app.tools.http import SourceUnavailableError
 
 FIXTURES_DIR = Path(__file__).resolve().parents[3] / "demo" / "fixtures"
 DEFAULT_SOURCES = (SourceType.ARXIV, SourceType.GITHUB)
+TARGETED_ARXIV_FIXTURE = "rag_targeted_research_arxiv_response.xml"
+
+# These are concepts the Critic commonly asks about after the broad first pass.
+# The generic adversarial first-pass suffix contains "failure" but not
+# "benchmark", so it remains on the baseline profile and leaves genuinely new
+# sources for a targeted follow-up round.
+TARGETED_QUERY_MARKERS = ("citation", "hallucination", "ragas")
 
 
 class ResearchSourceService:
@@ -52,7 +59,7 @@ class ResearchSourceService:
 
         if self._settings.mock_external_apis or self._settings.demo_mode:
             for source_type in sources:
-                fixture_results = self._load_fixture(source_type)
+                fixture_results = self._load_fixture(source_type, query=query)
                 source_results.extend(fixture_results[:max_results_per_source])
         else:
             async with httpx.AsyncClient() as client:
@@ -129,8 +136,10 @@ class ResearchSourceService:
         except SourceUnavailableError as exc:
             return [], SourceError(source_type=SourceType.GITHUB, message=str(exc))
 
-    def _load_arxiv_fixture(self) -> list[SourceResult]:
-        feed_xml = (FIXTURES_DIR / "arxiv_response.xml").read_text(encoding="utf-8")
+    def _load_arxiv_fixture(
+        self, fixture_name: str = "arxiv_response.xml"
+    ) -> list[SourceResult]:
+        feed_xml = (FIXTURES_DIR / fixture_name).read_text(encoding="utf-8")
         return parse_feed(feed_xml)
 
     def _load_github_fixture(self) -> list[SourceResult]:
@@ -139,7 +148,24 @@ class ResearchSourceService:
         )
         return parse_response(payload)
 
-    def _load_fixture(self, source_type: SourceType) -> list[SourceResult]:
+    def _load_fixture(
+        self, source_type: SourceType, *, query: str | None = None
+    ) -> list[SourceResult]:
+        if query is not None and _is_targeted_mock_query(query):
+            if source_type is SourceType.ARXIV:
+                return self._load_arxiv_fixture(TARGETED_ARXIV_FIXTURE)
+            # The follow-up capture contains papers only. Returning no GitHub
+            # result is faithful to that fixture profile, not a source outage.
+            return []
         if source_type is SourceType.ARXIV:
             return self._load_arxiv_fixture()
         return self._load_github_fixture()
+
+
+def _is_targeted_mock_query(query: str) -> bool:
+    normalized = " ".join(query.casefold().split())
+    return (
+        any(marker in normalized for marker in TARGETED_QUERY_MARKERS)
+        or "prompt injection" in normalized
+        or ("failure" in normalized and "benchmark" in normalized)
+    )

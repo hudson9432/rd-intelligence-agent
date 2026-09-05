@@ -57,6 +57,7 @@ the evidence card records a limitation — so a source that states no caveat can
 never reach a PoC candidate offline.
 
 The fixtures in `demo/fixtures/` are frozen responses captured from the live
-arXiv and GitHub APIs. The current set contains stated limitations and reaches
-`ready_for_poc` deterministically. Mock replay remains query-insensitive, so a
-targeted re-search round cannot demonstrate improvement from new evidence yet.
+arXiv and GitHub APIs. The baseline set contains stated limitations and reaches
+`ready_for_poc` deterministically. A separate RAG follow-up capture is selected
+for citation, hallucination, prompt-injection, Ragas, and failure-benchmark
+queries, so targeted re-search can add distinct evidence in mock mode.

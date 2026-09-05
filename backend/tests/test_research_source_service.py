@@ -67,6 +67,27 @@ async def test_mock_mode_honors_source_selection_and_per_source_limit() -> None:
     assert response.results[0].source_type is SourceType.GITHUB
 
 
+async def test_targeted_mock_query_returns_a_distinct_followup_fixture() -> None:
+    service = ResearchSourceService(settings=_mock_settings())
+
+    baseline = await service.search(
+        "retrieval augmented generation reliability",
+        max_results_per_source=10,
+    )
+    followup = await service.search(
+        "RAG failure benchmarks",
+        max_results_per_source=10,
+    )
+
+    assert baseline.results
+    assert followup.results
+    assert {result.url for result in baseline.results}.isdisjoint(
+        result.url for result in followup.results
+    )
+    assert {result.source_type for result in followup.results} == {SourceType.ARXIV}
+    assert followup.errors == []
+
+
 async def test_mock_mode_filters_by_published_date() -> None:
     service = ResearchSourceService(settings=_mock_settings())
 

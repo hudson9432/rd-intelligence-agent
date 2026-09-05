@@ -33,6 +33,14 @@ Refresh the e-commerce capture without changing the default RAG fixtures:
   --arxiv-only --fixture-stem ecommerce_recommender_pro_con
 ```
 
+Refresh the targeted RAG follow-up papers by exact ID:
+
+```bash
+.venv/bin/python demo/capture_fixtures.py \
+  --arxiv-ids 2401.00396 2408.08067 2410.14479 \
+  --arxiv-only --fixture-stem rag_targeted_research
+```
+
 It imports the request URLs and parameters from the tools themselves, parses
 each response before writing it, and reports how many captured sources state a
 limitation.
@@ -58,15 +66,16 @@ preserve, so a bad capture fails the suite rather than the demo:
 
 If a refresh breaks the demo, those tests say which property was lost.
 
-## What is still missing
+## Query-aware re-search profile
 
-Mock replay ignores the query: the fixtures are returned whatever is asked for.
-A targeted re-search round therefore returns exactly the same sources it
-already has, so the bounded re-search loop cannot improve its evidence offline
-and the product's Critic-driven re-search story is not observable in mock mode.
+`fixtures/rag_targeted_research_arxiv_response.xml` is a second raw capture for
+Critic follow-up queries about citations, hallucinations, Ragas, prompt
+injection, or failure benchmarks. General first-pass queries replay the default
+arXiv/GitHub fixtures; those targeted queries replay the follow-up papers, so a
+second round adds distinct evidence instead of re-extracting the same sources.
 
-Making that work needs per-query fixture sets, and is the remaining piece of
-roadmap phase 14 along with the full mission-to-action-plan demo scenario.
-The e-commerce scenario test exercises captured sources through the Phase C
-verdict and Action Agent, but it is not yet selected automatically by the mock
-Search stage and therefore does not close that remaining work by itself.
+This is intentionally a small deterministic profile, not a fake search index.
+Queries outside those RAG concepts still use the default fixture set. The
+e-commerce scenario test continues to exercise its exact captured sources
+directly through Phase C and Action; it is not automatically selected by mock
+Search.

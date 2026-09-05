@@ -260,9 +260,10 @@ attempts; paid tiers can leave it at `0`.
 
 ## Current limitations
 
-- `demo`: a mission reaches a PoC candidate offline, but mock replay ignores
-  the query, so the Critic-driven re-search loop is not observable. See
-  `demo/README.md`.
+- Mock search has a deterministic targeted RAG profile for citation,
+  hallucination, prompt-injection, and failure-benchmark queries. Other topics
+  still replay the default fixture set rather than simulating a complete search
+  index. See `demo/README.md`.
 - The dashboard shows missions only. Evidence, decision, and action views, and
   live progress from `GET /missions/{id}/events`, are not built.
 - The in-process background runner is appropriate for the hackathon demo, but
