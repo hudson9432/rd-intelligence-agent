@@ -22,7 +22,17 @@ class Settings(BaseSettings):
     llm_base_url: str | None = None
     llm_api_key: SecretStr | None = None
     llm_model: str | None = None
+    llm_min_request_interval_seconds: float = Field(default=0, ge=0, le=60)
     github_token: SecretStr | None = None
+
+    source_min_request_interval_seconds: float = 3.0
+    """Seconds between requests to one research source.
+
+    arXiv asks for roughly three seconds and enforces it by stalling replies
+    until they time out. GitHub's unauthenticated search allows ten requests a
+    minute, thirty with a token, so it is the tighter limit when no
+    `GITHUB_TOKEN` is set.
+    """
 
     mock_llm: bool = True
     mock_external_apis: bool = True

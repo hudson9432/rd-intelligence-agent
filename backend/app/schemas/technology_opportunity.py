@@ -14,7 +14,7 @@ class TechnologyOpportunityCreate(BaseModel):
     novelty: int = Field(ge=1, le=5)
     technical_maturity: int = Field(ge=1, le=5)
     implementation_difficulty: int = Field(ge=1, le=5)
-    business_impact: int = Field(ge=1, le=5)
+    goal_alignment: int = Field(ge=1, le=5)
     poc_feasibility: int = Field(ge=1, le=5)
     evidence_strength: int = Field(ge=1, le=5)
     overall_score: float = Field(ge=0, le=100)

@@ -22,6 +22,7 @@ terminates through its normal edges and the state gathered so far survives.
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 from uuid import UUID
@@ -33,6 +34,7 @@ from langgraph.graph import END, START, StateGraph
 from app.schemas.action_plan import ActionPlanCreate
 from app.schemas.analysis import PhaseCHandoff
 from app.schemas.evidence_card import EvidenceCard
+from app.schemas.search_agent import SearchAgentOutput
 from app.schemas.source_result import SourceResult
 from app.schemas.workflow import (
     WorkflowDecision,
@@ -59,18 +61,28 @@ _RECURSION_HEADROOM = 8
 
 
 class SearchStage(Protocol):
-    """Phase 05. Turns a goal or targeted queries into normalized sources."""
+    """Phase 05. Plans bounded queries and retrieves normalized sources."""
 
     def search(
-        self, *, goal: str, queries: Sequence[str], iteration: int
-    ) -> Sequence[SourceResult]: ...
+        self,
+        *,
+        mission_id: UUID,
+        goal: str,
+        missing_evidence: Sequence[str],
+        query_history: Sequence[str],
+        iteration: int,
+    ) -> SearchAgentOutput: ...
 
 
 class EvidenceStage(Protocol):
-    """Phase 06. Turns sources into persisted, provenance-checked evidence."""
+    """Phase 06. Turns sources into persisted, provenance-checked evidence.
+
+    Takes the goal because relevance is scored relative to it; an extractor
+    that does not know what the mission is deciding cannot rate a source.
+    """
 
     def extract(
-        self, *, mission_id: UUID, sources: Sequence[SourceResult]
+        self, *, mission_id: UUID, goal: str, sources: Sequence[SourceResult]
     ) -> Sequence[EvidenceCard]: ...
 
 
@@ -87,10 +99,19 @@ class AnalysisStage(Protocol):
 
 
 class DecisionStage(Protocol):
-    """Phase 10. Converts a handoff into a go/no-go recommendation."""
+    """Phase 10. Scores the candidates and recommends one.
+
+    Takes the evidence, not only the handoff: a candidate carries evidence ids
+    rather than the cards, and judging maturity or novelty from identifiers is
+    not possible.
+    """
 
     def decide(
-        self, *, mission_goal: str, handoff: PhaseCHandoff
+        self,
+        *,
+        mission_goal: str,
+        handoff: PhaseCHandoff,
+        evidence: Sequence[EvidenceCard],
     ) -> WorkflowDecision: ...
 
 
@@ -213,9 +234,6 @@ class WorkflowOrchestrator:
             if on_event is not None:
                 on_event(event)
 
-        if not state.queries:
-            state.queries = [state.goal]
-
         emit(
             self.agent_name,
             "workflow_started",
@@ -246,6 +264,7 @@ class WorkflowOrchestrator:
                 status="failed",
                 final_stage=WorkflowStage.ANALYSIS,
                 iterations_used=state.max_iterations,
+                query_history=list(state.query_history),
                 events=events,
                 error=f"The workflow graph exceeded its step limit: {error}",
             )
@@ -258,6 +277,8 @@ class WorkflowOrchestrator:
                 iterations_used=final.iteration,
                 handoff_status=final.handoff.status if final.handoff else None,
                 decision=final.decision,
+                evidence_count=len(final.evidence),
+                query_history=list(final.query_history),
                 events=events,
                 error=final.error,
             )
@@ -268,6 +289,19 @@ class WorkflowOrchestrator:
             "Workflow reached a terminal state.",
             iterations_used=final.iteration,
             handoff_status=final.handoff.status if final.handoff else None,
+            evidence_count=len(final.evidence),
+            query_history=list(final.query_history),
+            decision=(
+                final.decision.model_dump(mode="json") if final.decision else None
+            ),
+            poc_candidates=(
+                [
+                    candidate.model_dump(mode="json")
+                    for candidate in final.handoff.poc_candidates
+                ]
+                if final.handoff
+                else []
+            ),
         )
 
         return WorkflowRunResult(
@@ -280,44 +314,87 @@ class WorkflowOrchestrator:
             action_plan=final.action_plan,
             poc_candidates=list(final.handoff.poc_candidates) if final.handoff else [],
             evidence_count=len(final.evidence),
+            query_history=list(final.query_history),
             events=events,
         )
 
     # ----------------------------------------------------------------- nodes
 
-    def _search(
-        self, state: WorkflowState, config: RunnableConfig
-    ) -> dict[str, Any]:
+    def _search(self, state: WorkflowState, config: RunnableConfig) -> dict[str, Any]:
         emit = _emitter(config)
         try:
-            found = list(
-                self.stages.search.search(
-                    goal=state.goal,
-                    queries=list(state.queries),
-                    iteration=state.iteration,
-                )
+            output = self.stages.search.search(
+                mission_id=state.mission_id,
+                goal=state.goal,
+                missing_evidence=list(state.queries),
+                query_history=list(state.query_history),
+                iteration=state.iteration,
             )
         except WorkflowStageError as error:
             return _failure(WorkflowStage.SEARCH, error, emit)
 
+        queries = list(output.generated_queries)
+        found = list(output.retrieved_sources)
+        query_history = [*state.query_history, *queries]
+
+        if output.source_errors:
+            # Retrieving nothing is ambiguous: the queries may have matched
+            # nothing, or a provider may have been down. Say which, so a round
+            # that found nothing because arXiv was unreachable does not read as
+            # a round that found nothing because the evidence does not exist.
+            emit(
+                "search",
+                "source_unavailable",
+                "Could not reach "
+                + ", ".join(
+                    sorted({error.source_type for error in output.source_errors})
+                )
+                + f" for this round; {len(found)} source(s) retrieved from the rest.",
+                iteration=state.iteration,
+                # One entry per distinct failure. A round runs several queries,
+                # so a source that is down fails once per query and would
+                # otherwise repeat the same line several times over.
+                failures=[
+                    {"source_type": source_type, "message": message, "queries": count}
+                    for (source_type, message), count in sorted(
+                        Counter(
+                            (error.source_type, error.message)
+                            for error in output.source_errors
+                        ).items()
+                    )
+                ],
+            )
+        emit(
+            "search",
+            "queries_generated",
+            f"Generated {len(queries)} new search query/queries.",
+            iteration=state.iteration,
+            queries=queries,
+            query_count=len(queries),
+            notes=output.notes,
+        )
         emit(
             "search",
             "sources_retrieved",
-            f"Retrieved {len(found)} source(s) for {len(state.queries)} query/queries.",
+            f"Retrieved {len(found)} source(s) for {len(queries)} query/queries.",
             iteration=state.iteration,
-            queries=list(state.queries),
+            queries=queries,
             source_count=len(found),
         )
-        return {"sources": found}
+        return {
+            "queries": queries,
+            "query_history": query_history,
+            "sources": found,
+        }
 
-    def _evidence(
-        self, state: WorkflowState, config: RunnableConfig
-    ) -> dict[str, Any]:
+    def _evidence(self, state: WorkflowState, config: RunnableConfig) -> dict[str, Any]:
         emit = _emitter(config)
         try:
             extracted = list(
                 self.stages.evidence.extract(
-                    mission_id=state.mission_id, sources=state.sources
+                    mission_id=state.mission_id,
+                    goal=state.goal,
+                    sources=state.sources,
                 )
             )
         except WorkflowStageError as error:
@@ -338,9 +415,7 @@ class WorkflowOrchestrator:
         )
         return {"evidence": merged}
 
-    def _analysis(
-        self, state: WorkflowState, config: RunnableConfig
-    ) -> dict[str, Any]:
+    def _analysis(self, state: WorkflowState, config: RunnableConfig) -> dict[str, Any]:
         emit = _emitter(config)
         try:
             handoff = self.stages.analysis.analyze(
@@ -411,9 +486,7 @@ class WorkflowOrchestrator:
             "queries": list(request.queries),
         }
 
-    def _decision(
-        self, state: WorkflowState, config: RunnableConfig
-    ) -> dict[str, Any]:
+    def _decision(self, state: WorkflowState, config: RunnableConfig) -> dict[str, Any]:
         emit = _emitter(config)
         if state.handoff is None:  # pragma: no cover - unreachable via routing
             return _failure(
@@ -424,7 +497,9 @@ class WorkflowOrchestrator:
 
         try:
             decision = self.stages.decision.decide(
-                mission_goal=state.goal, handoff=state.handoff
+                mission_goal=state.goal,
+                handoff=state.handoff,
+                evidence=list(state.evidence),
             )
         except WorkflowStageError as error:
             return _failure(WorkflowStage.DECISION, error, emit)

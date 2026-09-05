@@ -45,7 +45,7 @@ def test_opportunity_scores_are_bounded() -> None:
             novelty=6,
             technical_maturity=3,
             implementation_difficulty=3,
-            business_impact=5,
+            goal_alignment=5,
             poc_feasibility=4,
             evidence_strength=3,
             overall_score=75,

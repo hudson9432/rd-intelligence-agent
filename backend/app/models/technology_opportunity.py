@@ -27,8 +27,8 @@ class TechnologyOpportunity(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
             name="ck_opportunity_implementation_difficulty",
         ),
         CheckConstraint(
-            "business_impact BETWEEN 1 AND 5",
-            name="ck_opportunity_business_impact",
+            "goal_alignment BETWEEN 1 AND 5",
+            name="ck_opportunity_goal_alignment",
         ),
         CheckConstraint(
             "poc_feasibility BETWEEN 1 AND 5",
@@ -58,7 +58,7 @@ class TechnologyOpportunity(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     novelty: Mapped[int] = mapped_column(Integer, nullable=False)
     technical_maturity: Mapped[int] = mapped_column(Integer, nullable=False)
     implementation_difficulty: Mapped[int] = mapped_column(Integer, nullable=False)
-    business_impact: Mapped[int] = mapped_column(Integer, nullable=False)
+    goal_alignment: Mapped[int] = mapped_column(Integer, nullable=False)
     poc_feasibility: Mapped[int] = mapped_column(Integer, nullable=False)
     evidence_strength: Mapped[int] = mapped_column(Integer, nullable=False)
     overall_score: Mapped[float] = mapped_column(Float, nullable=False)

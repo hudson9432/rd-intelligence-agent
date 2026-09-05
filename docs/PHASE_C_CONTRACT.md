@@ -55,6 +55,16 @@ PoC. Code calculates support and counterevidence strength from the cited
 evidence cards. Missing review or missing evidence remains unknown and is never
 converted into negative evidence.
 
+A review that cannot be applied counts as missing. Every generator here is a
+language model, and a model can cite an identifier that does not exist,
+contradict itself by opposing the evidence it also cites as support, review a
+claim that is not under analysis, or return two reviews for one claim. Such a
+review is discarded and its claim is judged as if no review arrived. The same
+rule governs the Analyst and the Critic: a direction or question that cites
+evidence outside the supplied set is dropped, and the remaining ones are kept.
+Rejecting the invented reference is required by invariant 2; rejecting
+everything alongside it is not, and discards work that is sound.
+
 Each claim receives one of four verdicts:
 
 - supported: meaningful support with weak counterevidence;
@@ -81,9 +91,16 @@ PhaseCHandoff.status is exactly one of:
   rules. No PoC candidate is emitted. Missing evidence never causes this state
   before the bounded re-search opportunity has been used.
 
-C therefore owns the content of targeted re-search and the viability gate. D
-owns loop execution, iteration limits, persistence, events, and conversion of a
-PoC candidate into an ActionPlan.
+Outstanding critique questions request research only while budget remains. Once
+D reports the budget exhausted, they stop deciding the outcome and the claim
+verdicts do: a critic can always ask another question, and that is not the same
+as no direction being viable. Any question left unanswered travels into the PoC
+candidate as an unresolved question, which is what a PoC is for.
+
+C therefore owns identification of targeted evidence gaps and the viability
+gate. The Search Agent converts those gaps and suggested searches into final,
+history-aware queries. D owns loop execution, iteration limits, persistence,
+events, and conversion of a PoC candidate into an ActionPlan.
 
 ## Integration boundaries
 

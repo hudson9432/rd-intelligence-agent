@@ -1,11 +1,15 @@
 """Tests for concurrent, deterministic research-source orchestration."""
 
+import json
 from datetime import UTC, datetime
 
 from app.core.config import Settings
 from app.schemas.source_result import SourceResult, SourceType
 from app.services import research_source as research_source_module
-from app.services.research_source import ResearchSourceService
+from app.services.research_source import FIXTURES_DIR, ResearchSourceService
+from app.tools.arxiv import parse_feed
+from app.tools.dedupe import dedupe_results
+from app.tools.github import parse_response
 from app.tools.http import SourceUnavailableError
 
 
@@ -21,6 +25,18 @@ def _real_settings(**overrides: object) -> Settings:
     )
 
 
+def expected_fixture_result_count() -> int:
+    """How many sources the committed fixtures yield after deduplication."""
+
+    arxiv = parse_feed(
+        (FIXTURES_DIR / "arxiv_response.xml").read_text(encoding="utf-8")
+    )
+    github = parse_response(
+        json.loads((FIXTURES_DIR / "github_response.json").read_text(encoding="utf-8"))
+    )
+    return len(dedupe_results([*arxiv, *github]))
+
+
 async def test_mock_mode_is_deterministic_and_deduplicated() -> None:
     service = ResearchSourceService(settings=_mock_settings())
 
@@ -29,7 +45,9 @@ async def test_mock_mode_is_deterministic_and_deduplicated() -> None:
 
     assert first == second
     assert first.errors == []
-    assert len(first.results) == 4
+    # Counted from the committed fixtures rather than pinned, so refreshing
+    # them with demo/capture_fixtures.py does not break this test.
+    assert len(first.results) == expected_fixture_result_count()
     assert {result.source_type for result in first.results} == {
         SourceType.ARXIV,
         SourceType.GITHUB,
@@ -73,7 +91,7 @@ async def test_real_mode_output_matches_mock_mode(
     mock_response = await mock_service.search("transformers", max_results_per_source=10)
 
     async def fake_search_arxiv(
-        query: str, max_results: int, *, client
+        query: str, max_results: int, *, client, **kwargs
     ) -> list[SourceResult]:
         return mock_service._load_arxiv_fixture()
 
@@ -83,6 +101,7 @@ async def test_real_mode_output_matches_mock_mode(
         *,
         client,
         token: str | None = None,
+        **kwargs,
     ) -> list[SourceResult]:
         return mock_service._load_github_fixture()
 
@@ -104,6 +123,7 @@ async def test_service_passes_optional_github_token(monkeypatch) -> None:
         *,
         client,
         token: str | None = None,
+        **kwargs,
     ) -> list[SourceResult]:
         captured["token"] = token
         return []
@@ -127,7 +147,7 @@ async def test_one_source_failing_still_returns_the_other(monkeypatch) -> None:
     github_fixture = mock_service._load_github_fixture()
 
     async def failing_arxiv(
-        query: str, max_results: int, *, client
+        query: str, max_results: int, *, client, **kwargs
     ) -> list[SourceResult]:
         raise SourceUnavailableError("arxiv unreachable")
 
@@ -137,6 +157,7 @@ async def test_one_source_failing_still_returns_the_other(monkeypatch) -> None:
         *,
         client,
         token: str | None = None,
+        **kwargs,
     ) -> list[SourceResult]:
         return github_fixture
 
@@ -156,7 +177,7 @@ async def test_both_sources_failing_returns_no_results_and_two_errors(
     monkeypatch,
 ) -> None:
     async def failing_arxiv(
-        query: str, max_results: int, *, client
+        query: str, max_results: int, *, client, **kwargs
     ) -> list[SourceResult]:
         raise SourceUnavailableError("arxiv unreachable")
 
@@ -166,6 +187,7 @@ async def test_both_sources_failing_returns_no_results_and_two_errors(
         *,
         client,
         token: str | None = None,
+        **kwargs,
     ) -> list[SourceResult]:
         raise SourceUnavailableError("github unreachable")
 

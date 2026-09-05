@@ -53,17 +53,13 @@ def direction_evidence_coverage(
     """
 
     all_ids = [
-        evidence_id
-        for claim in direction.claims
-        for evidence_id in claim.evidence_ids
+        evidence_id for claim in direction.claims for evidence_id in claim.evidence_ids
     ]
     validate_evidence_references(all_ids, evidence_by_id)
 
     claim_scores: list[float] = []
     for claim in direction.claims:
-        claim_scores.append(
-            evidence_strength(claim.evidence_ids, evidence_by_id)
-        )
+        claim_scores.append(evidence_strength(claim.evidence_ids, evidence_by_id))
 
     return round(sum(claim_scores) / len(claim_scores), 4)
 
@@ -79,9 +75,7 @@ def evidence_strength(
         return 0.0
 
     cards = [evidence_by_id[evidence_id] for evidence_id in unique_ids]
-    qualities = [
-        card.relevance_score * card.extraction_confidence for card in cards
-    ]
+    qualities = [card.relevance_score * card.extraction_confidence for card in cards]
     independent_sources = len({card.source_id for card in cards})
     corroboration_bonus = min(0.2, max(0, independent_sources - 1) * 0.1)
     return round(min(1.0, max(qualities) + corroboration_bonus), 4)
@@ -113,3 +107,126 @@ def _jaccard(left: set[str], right: set[str]) -> float:
         return 1.0
     union = left | right
     return len(left & right) / len(union) if union else 0.0
+
+
+#: Words carried by almost any research goal, which would otherwise inflate
+#: overlap with unrelated text.
+_GOAL_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "of",
+        "to",
+        "in",
+        "on",
+        "for",
+        "with",
+        "by",
+        "from",
+        "at",
+        "as",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "it",
+        "its",
+        "this",
+        "that",
+        "these",
+        "those",
+        "we",
+        "our",
+        "us",
+        "you",
+        "your",
+        "they",
+        "their",
+        "whether",
+        "should",
+        "would",
+        "could",
+        "can",
+        "may",
+        "might",
+        "will",
+        "shall",
+        "do",
+        "does",
+        "did",
+        "not",
+        "no",
+        "if",
+        "than",
+        "then",
+        "so",
+        "such",
+        "into",
+        "over",
+        "out",
+        "about",
+        "more",
+        "most",
+        "other",
+        "some",
+        "any",
+        "all",
+        "each",
+        "rather",
+        "decide",
+        "determine",
+        "evaluate",
+        "assess",
+        "investigate",
+        "explore",
+        "invest",
+        "use",
+        "make",
+        "new",
+        "line",
+    }
+)
+
+_SUFFIXES = ("ization", "isation", "ing", "ies", "ed", "es", "s")
+
+
+def _stem(word: str) -> str:
+    """Trim a common suffix so `models` and `model` compare equal."""
+
+    for suffix in _SUFFIXES:
+        if len(word) > len(suffix) + 3 and word.endswith(suffix):
+            return word[: -len(suffix)]
+    return word
+
+
+def _content_tokens(value: str) -> set[str]:
+    return {
+        _stem(word)
+        for word in re.findall(r"[a-z0-9][a-z0-9\-]{2,}", value.lower())
+        if word not in _GOAL_STOPWORDS
+    }
+
+
+def goal_overlap(goal: str, text: str) -> float:
+    """Fraction of the goal's content words that appear in the text.
+
+    A deliberately shallow, deterministic signal: it measures lexical overlap,
+    not meaning. It exists so offline mock extraction can report a relevance
+    score that varies with the source instead of a constant, and it is not a
+    substitute for a model's judgement.
+
+    Containment against the goal, rather than Jaccard, keeps the score
+    independent of how long the source is: a short goal fully covered by a long
+    paper still scores high.
+    """
+
+    goal_tokens = _content_tokens(goal)
+    if not goal_tokens:
+        return 0.0
+    matched = goal_tokens & _content_tokens(text)
+    return round(len(matched) / len(goal_tokens), 4)

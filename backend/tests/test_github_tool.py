@@ -17,16 +17,23 @@ FIXTURE_PAYLOAD = json.loads(FIXTURE_TEXT)
 
 
 def test_parse_response_maps_items_without_fabricating_fields() -> None:
+    """Assert on structure, not on which repositories were captured.
+
+    The fixture is refreshed by `demo/capture_fixtures.py`; pinning repository
+    names here would make every refresh a test failure.
+    """
+
     results = parse_response(FIXTURE_PAYLOAD)
 
-    assert len(results) == 2
-    first = results[0]
-    assert first.source_type is SourceType.GITHUB
-    assert first.title == "huggingface/transformers"
-    assert first.url == "https://github.com/huggingface/transformers"
-    assert first.authors == ["huggingface"]
-    assert first.metadata["language"] == "Python"
-    assert first.metadata["updated_at"] == "2026-09-04T05:18:46Z"
+    assert results, "the committed fixture must contain parseable items"
+    for result in results:
+        assert result.source_type is SourceType.GITHUB
+        assert result.url.startswith("https://github.com/")
+        assert result.url in FIXTURE_TEXT
+        owner, _, name = result.title.partition("/")
+        assert owner and name, "a repository title is owner/name"
+        assert result.authors == [owner]
+        assert set(result.metadata) >= {"stars", "language", "updated_at"}
 
 
 def test_parse_response_skips_items_missing_required_fields() -> None:

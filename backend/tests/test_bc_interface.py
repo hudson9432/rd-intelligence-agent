@@ -72,9 +72,7 @@ def test_bridge_persists_b_output_before_c_receives_evidence_ids() -> None:
     assert len(writer.saved) == 2
     assert len(ready) == 2
     assert all(card.id for card in ready)
-    assert [card.source_id for card in ready] == [
-        card.source_id for card in extracted
-    ]
+    assert [card.source_id for card in ready] == [card.source_id for card in extracted]
 
 
 def test_bridge_rejects_mixed_missions_before_writing() -> None:
@@ -121,6 +119,7 @@ def test_b_evidence_agent_connects_to_c_and_produces_poc_handoff() -> None:
     extracted = EvidenceAgent(FixedLLMClient([extraction_json])).extract(
         mission_id=mission_id,
         source_id=source_id,
+        mission_goal="Improve grounded conversational product recommendation.",
         source=SourceResult(
             source_type="arxiv",
             title="Hybrid conversational recommendation",

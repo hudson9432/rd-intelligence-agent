@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import Protocol
 
 from app.schemas.analysis import AnalystOutcome, DirectionDraft, RankedDirection
 from app.schemas.evidence_card import EvidenceCard
-from app.services.scoring import direction_evidence_coverage, evidence_index
+from app.services.scoring import (
+    UnknownEvidenceReferenceError,
+    direction_evidence_coverage,
+    evidence_index,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class DirectionGenerator(Protocol):
@@ -60,7 +67,21 @@ class AnalystAgent:
         scored_by_title: dict[str, tuple[DirectionDraft, float]] = {}
         for draft in drafts:
             normalized_title = " ".join(draft.title.casefold().split())
-            coverage = direction_evidence_coverage(draft, evidence_by_id)
+            try:
+                coverage = direction_evidence_coverage(draft, evidence_by_id)
+            except UnknownEvidenceReferenceError:
+                # A generator that cites evidence outside the supplied set has
+                # invented an id. Discard that direction and keep the rest: a
+                # batch of twelve drafts must not be voided by one bad
+                # citation. If none survive, `research_required` below reports
+                # that no direction has traceable support.
+                logger.warning(
+                    "Discarded direction %s: it cites evidence outside the "
+                    "supplied set",
+                    draft.id,
+                    exc_info=True,
+                )
+                continue
             current = scored_by_title.get(normalized_title)
             if coverage > 0 and (
                 current is None

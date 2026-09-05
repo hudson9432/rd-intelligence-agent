@@ -4,8 +4,6 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-import pytest
-
 from app.agents.analyst import AnalystAgent
 from app.agents.critic import CriticAgent
 from app.schemas.analysis import (
@@ -18,12 +16,11 @@ from app.schemas.analysis import (
     SemanticQuestionScores,
 )
 from app.schemas.evidence_card import EvidenceCard
+from app.services.phase_c import build_phase_c_handoff, classify_claim_verdict
 from app.services.scoring import (
-    UnknownEvidenceReferenceError,
     direction_evidence_coverage,
     question_diversity,
 )
-from app.services.phase_c import build_phase_c_handoff, classify_claim_verdict
 
 
 def evidence_card(
@@ -74,7 +71,9 @@ class FixedQuestionGenerator:
 
 class ScoreByQuestionReviewer:
     def __init__(
-        self, scores: dict[str, tuple[float, float]], default: tuple[float, float] = (0.9, 0.9)
+        self,
+        scores: dict[str, tuple[float, float]],
+        default: tuple[float, float] = (0.9, 0.9),
     ) -> None:
         self.scores = scores
         self.default = default
@@ -164,9 +163,7 @@ def test_direction_coverage_rewards_quality_and_independent_corroboration() -> N
         relevance=0.7,
         confidence=0.8,
     )
-    evidence_by_id = {
-        card.id: card for card in (first, same_source, independent)
-    }
+    evidence_by_id = {card.id: card for card in (first, same_source, independent)}
 
     same_source_score = direction_evidence_coverage(
         direction("one", "Direction", [first.id, same_source.id]),
@@ -260,16 +257,41 @@ def test_analyst_keeps_best_supported_version_of_duplicate_direction() -> None:
     assert outcome.active_directions[0].evidence_coverage == 0.9
 
 
-def test_analyst_rejects_an_unknown_evidence_reference() -> None:
+def test_analyst_discards_a_direction_with_an_unknown_evidence_reference() -> None:
+    """A fabricated citation voids its own direction, not the whole analysis.
+
+    This used to raise, which meant one invented id from the generator
+    destroyed an entire mission after its evidence had been gathered. The
+    reference is still rejected — the direction never reaches the output — but
+    the remaining directions survive.
+    """
+
     mission_id = uuid4()
     card = evidence_card(mission_id=mission_id, relevance=0.9, confidence=0.9)
-    draft = direction("d1", "Invalid", [uuid4()])
+    invalid = direction("d1", "Invalid", [uuid4()])
 
-    with pytest.raises(UnknownEvidenceReferenceError):
-        AnalystAgent(FixedDirectionGenerator([draft])).analyze(
-            mission_goal="Find a direction.",
-            evidence=[card],
-        )
+    outcome = AnalystAgent(FixedDirectionGenerator([invalid])).analyze(
+        mission_goal="Find a direction.",
+        evidence=[card],
+    )
+
+    assert outcome.status == "research_required"
+    assert outcome.active_directions == []
+
+
+def test_analyst_keeps_valid_directions_alongside_an_invalid_one() -> None:
+    mission_id = uuid4()
+    card = evidence_card(mission_id=mission_id, relevance=0.9, confidence=0.9)
+    invalid = direction("bad", "Invalid", [uuid4()])
+    valid = direction("good", "Valid", [card.id])
+
+    outcome = AnalystAgent(FixedDirectionGenerator([invalid, valid])).analyze(
+        mission_goal="Find a direction.",
+        evidence=[card],
+    )
+
+    assert outcome.status == "ready"
+    assert [item.id for item in outcome.active_directions] == ["good"]
 
 
 def test_question_diversity_detects_homogeneous_questions() -> None:
@@ -277,9 +299,7 @@ def test_question_diversity_detects_homogeneous_questions() -> None:
 
     assert question_diversity(original, []) == 1
     assert question_diversity(original, [original]) == 0
-    assert question_diversity(
-        "Is deployment latency measured?", [original]
-    ) > 0.6
+    assert question_diversity("Is deployment latency measured?", [original]) > 0.6
 
 
 def test_critic_rejects_low_score_and_uses_next_candidate_as_replacement() -> None:
@@ -474,7 +494,9 @@ def test_phase_c_hands_evidence_grounded_poc_candidate_to_d() -> None:
     ]
 
 
-def test_phase_c_requests_research_then_reports_no_viable_direction_when_exhausted() -> None:
+def test_phase_c_requests_research_then_reports_no_viable_direction_when_exhausted() -> (
+    None
+):
     mission_id = uuid4()
     card = evidence_card(mission_id=mission_id, relevance=0.9, confidence=0.9)
     draft = direction("d1", "Hybrid recommender", [card.id], claim_id="c1")
@@ -522,17 +544,23 @@ def test_phase_c_requests_research_then_reports_no_viable_direction_when_exhaust
 
 
 def test_missing_counterevidence_review_is_unknown_not_negative() -> None:
-    assert classify_claim_verdict(
-        support_strength=0.8,
-        counterevidence_strength=None,
-    ) == "unknown"
+    assert (
+        classify_claim_verdict(
+            support_strength=0.8,
+            counterevidence_strength=None,
+        )
+        == "unknown"
+    )
 
 
 def test_strong_counterevidence_refutes_a_weakly_supported_claim() -> None:
-    assert classify_claim_verdict(
-        support_strength=0.3,
-        counterevidence_strength=0.8,
-    ) == "refuted"
+    assert (
+        classify_claim_verdict(
+            support_strength=0.3,
+            counterevidence_strength=0.8,
+        )
+        == "refuted"
+    )
 
 
 def test_contested_but_testable_claim_can_still_become_a_poc() -> None:

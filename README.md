@@ -8,11 +8,11 @@ The intended product loop is:
 
 > Research → Evidence → Evaluate → Decide → Act
 
-This repository contains the **phase 1–2 foundation**: a FastAPI backend,
-SQLite persistence and mission APIs, plus a Next.js dashboard shell. It also
-includes early provider-independent LLM and provenance-safe Evidence extraction
-components for parallel development. arXiv/GitHub research tools are available;
-the end-to-end agent workflow remains forthcoming.
+The repository now runs a mission through Search, Evidence, Analyst, and Critic
+agents to an evidence-backed PoC candidate. It supports a deterministic offline
+mode and an OpenAI-compatible real-model mode. Decision scoring and Action
+planning remain explicit placeholders; the project does not claim that those
+unfinished stages are model-backed agents.
 
 ## Project status
 
@@ -20,14 +20,16 @@ the end-to-end agent workflow remains forthcoming.
 | --- | --- |
 | Repository and local environments | Complete |
 | FastAPI health API and initial schemas | Complete |
-| Next.js dashboard shell | Complete |
-| Frontend mission list and creation wired to the mission API | Complete |
+| Next.js dashboard with mission list and creation | Complete |
 | SQLite persistence and mission APIs | Complete |
 | arXiv/GitHub research source tools (`POST /research/search`) | Complete |
+| Search Agent query planning and query-history deduplication | Complete |
 | Workflow orchestrator (`POST /missions/{id}/run`) | In progress |
-| LLM provider and Evidence extraction foundations | In progress |
-| End-to-end agent workflow | Planned |
-| Deterministic offline demo | Planned |
+| Typed structured LLM output and provider integration | Complete |
+| Analyst, Critic, and the Phase C viability gate | Complete |
+| Goal to sources to evidence to decision, offline | Complete |
+| PoC action plan and Decision Engine scoring | Planned |
+| Deterministic offline demo | In progress |
 
 See [the implementation roadmap](docs/ROADMAP.md) for the ordered delivery
 phases and [the architecture guide](docs/ARCHITECTURE.md) for system boundaries.
@@ -119,14 +121,11 @@ In a separate terminal:
 
 ```bash
 cd frontend
-cp .env.example .env.local
 npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. The dashboard reads and creates missions through
-the backend, so start the API first; if it is unreachable the page renders a
-degraded state instead of failing. For production verification, run:
+Open <http://localhost:3000>. For production verification, run:
 
 ```bash
 npm run lint
@@ -147,21 +146,14 @@ the populated `.env` file or API keys.
 | `CORS_ORIGINS` | JSON list of allowed frontend origins | `["http://localhost:3000"]` |
 | `DATABASE_URL` | SQLAlchemy database URL | `sqlite:///./data/rd_intelligence.db` |
 | `DATABASE_ECHO` | Log generated SQL for debugging | `false` |
-| `LLM_BASE_URL` | OpenAI-compatible API base URL | empty |
+| `LLM_BASE_URL` | OpenAI-compatible API base URL, normally ending in `/v1` | empty |
 | `LLM_API_KEY` | Secret provider credential | empty |
 | `LLM_MODEL` | Provider model name | empty |
+| `LLM_MIN_REQUEST_INTERVAL_SECONDS` | Process-wide pacing for one provider/model | `0` |
 | `MOCK_LLM` | Use the deterministic, offline LLM client | `true` |
 | `GITHUB_TOKEN` | Optional GitHub API credential for higher rate limits | empty |
 | `MOCK_EXTERNAL_APIS` | Replay deterministic arXiv/GitHub fixtures | `true` |
 | `DEMO_MODE` | Future offline end-to-end demo mode | `false` |
-
-Frontend configuration lives in `frontend/.env.example`. `API_BASE_URL` is read
-on the server only and is never exposed to the browser, so it must not carry the
-`NEXT_PUBLIC_` prefix.
-
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `API_BASE_URL` | Backend base URL used by Server Components and Actions | `http://127.0.0.1:8000` |
 
 ## Research source search
 
@@ -182,34 +174,100 @@ output are structurally identical.
 ## Running a mission workflow
 
 `POST /missions/{mission_id}/run` executes the mission graph and records every
-stage transition as an `AgentEvent`:
+stage transition as an `AgentEvent`. It waits for the complete result and is
+best suited to offline mode, tests, or direct backend calls:
 
 ```bash
 curl -X POST http://localhost:8000/missions/{mission_id}/run
 curl http://localhost:8000/missions/{mission_id}/events
 ```
 
+For real providers, use the background endpoint so multiple model calls do not
+hold one HTTP request open:
+
+```bash
+curl -X POST http://localhost:8000/missions/{mission_id}/run/async
+curl http://localhost:8000/missions/{mission_id}
+curl http://localhost:8000/missions/{mission_id}/events
+```
+
+The background request returns `202 Accepted` with `mission_url` and
+`events_url`. Poll until the mission status is `completed` or `failed`. The
+terminal `workflow_completed` event includes `evidence_count`, `decision`, and
+the evidence-linked `poc_candidates` summary.
+
 The graph runs on LangGraph; routing and the re-search bound stay in
-deterministic Python, with LangGraph's step limit only as a backstop. The
-graph, its loop, its event stream, and its Analysis stage are real — Analysis
-runs the Analyst, the Critic, and the Phase C viability gate. Search,
-Evidence, Decision, and Action are not built yet: an unimplemented phase returns an empty
-result rather than invented data, so a run with the default stage set
-truthfully ends at `no_viable_direction`. Replace a stage as its phase lands;
-see `backend/app/agents/pending_stages.py`.
+deterministic Python, with LangGraph's step limit only as a backstop.
+
+Search, Evidence, and Analysis are real, so a run goes from the mission goal to
+planned queries, retrieved sources, persisted evidence, a Phase C handoff, and
+a decision — offline, with `MOCK_EXTERNAL_APIS` and `MOCK_LLM` at their
+defaults. It stops at a PoC *candidate*: the Decision stage follows the Phase C
+gate without scoring, and the Action stage produces no task plan, so the run
+reports `action_plan_skipped` rather than inventing one. An unimplemented phase always
+returns an empty result rather than plausible-looking data; see
+`backend/app/agents/pending_stages.py`.
+
+### Using a real model
+
+Configure `backend/.env` without committing it:
+
+```dotenv
+MOCK_LLM=false
+LLM_BASE_URL=https://your-openai-compatible-provider.example/v1
+LLM_API_KEY=your-secret-key
+LLM_MODEL=your-model-name
+LLM_MIN_REQUEST_INTERVAL_SECONDS=0
+```
+
+The provider must support the Chat Completions endpoint and JSON object response
+mode. Structured calls send `response_format: {"type":"json_object"}` and then
+validate the response against the relevant Pydantic contract. A response wrapped
+in a single Markdown `json` fence is accepted; prose or a schema mismatch fails
+the workflow instead of silently becoming `no_viable_direction`.
+
+For Gemini through Google's OpenAI compatibility endpoint, this configuration
+has been exercised end to end:
+
+```dotenv
+MOCK_LLM=false
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+LLM_API_KEY=your-gemini-api-key
+LLM_MODEL=gemini-3.1-flash-lite
+LLM_MIN_REQUEST_INTERVAL_SECONDS=4.2
+```
+
+Evidence snippets must still come from the source. Provenance matching tolerates
+Unicode normalization and whitespace-only changes, but rejects paraphrases,
+translations, and invented text. If every retrieved source is rejected, the
+Evidence stage reports a provider failure rather than pretending no viable
+direction exists.
+
+`MOCK_EXTERNAL_APIS=true` may be kept while using a real LLM. In that mode the
+sources are frozen responses previously captured from the real arXiv and GitHub
+APIs, while Search/Evidence/Analyst/Critic cognition comes from the configured
+model. Set `MOCK_EXTERNAL_APIS=false` as well to query both source APIs live.
+
+Free-tier providers often impose a low requests-per-minute quota. Set
+`LLM_MIN_REQUEST_INTERVAL_SECONDS=4.2` for a 15 RPM quota. The limiter is shared
+by Search, Evidence, Analyst, and Critic clients in the process, including retry
+attempts; paid tiers can leave it at `0`.
 
 ## Current placeholders
 
-- `backend/app/agents/pending_stages.py`: the Search, Evidence, Decision, and
-  Action workflow stages. The orchestrator graph and its Analysis stage are
-  implemented; those four are not.
-- Evidence extraction exists but is not yet wired to persistence and events.
-- Most `backend/app/services` modules beyond mission and research-source services.
-- Prompts beyond the initial Evidence extraction prompt.
-- `demo`: research-source fixtures exist; the complete offline scenario remains
-  planned.
-- The dashboard lists and creates missions, but evidence, decision, and action
-  views still require the agent workflow phases.
+- `backend/app/agents/pending_stages.py`: the Decision and Action workflow
+  stages. Decision follows the Phase C gate without scoring anything, and
+  Action produces no plan, so a run ends at a PoC *candidate* rather than a
+  task plan.
+- Prompts beyond Evidence extraction and Phase C analysis.
+- `demo`: a mission reaches a PoC candidate offline, but mock replay ignores
+  the query, so the Critic-driven re-search loop is not observable. See
+  `demo/README.md`.
+- The dashboard shows missions only. Evidence, decision, and action views, and
+  live progress from `GET /missions/{id}/events`, are not built.
+- The in-process background runner is appropriate for the hackathon demo, but
+  it is not a durable distributed job queue: a process restart can interrupt a
+  running mission.
 
 ## Collaborating
 

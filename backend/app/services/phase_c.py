@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from uuid import UUID
 
@@ -17,7 +18,14 @@ from app.schemas.analysis import (
     TargetedResearchRequest,
 )
 from app.schemas.evidence_card import EvidenceCard
-from app.services.scoring import evidence_index, evidence_strength
+from app.services.scoring import (
+    UnknownEvidenceReferenceError,
+    evidence_index,
+    evidence_strength,
+    validate_evidence_references,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def build_phase_c_handoff(
@@ -61,13 +69,24 @@ def build_phase_c_handoff(
             reason="No evidence-backed direction has been generated.",
         )
 
-    if critique.status == "research_required":
+    if critique.status == "research_required" and not research_exhausted:
         assert critique.research_request is not None
-        return _research_or_no_viable(
-            research_exhausted=research_exhausted,
-            request=critique.research_request,
+        return PhaseCHandoff(
+            status="research_required",
+            research_request=critique.research_request,
             reason="Material critique questions still require evidence.",
         )
+
+    # Once the budget is spent, outstanding critique questions no longer decide
+    # the outcome. A critic always has another question; that is not the same
+    # as no direction being viable, and this contract reserves
+    # `no_viable_direction` for "the research budget is exhausted *and* no
+    # direction satisfies the core-claim viability rules". Short-circuiting
+    # here skipped the second half of that test entirely, so claim evaluation
+    # never ran on a real provider: a live critic attaches a suggested search
+    # to almost every accepted question, which pinned the critique at
+    # `research_required` no matter how much evidence had been gathered.
+    # Falling through lets the evidence decide.
 
     evidence_by_id = evidence_index(evidence)
     assessments = _evaluate_claims(
@@ -156,33 +175,14 @@ def _evaluate_claims(
     reviews: Sequence[ClaimReview],
     strong_counterevidence: float,
 ) -> list[EvaluatedClaim]:
-    review_by_key = {
-        (review.direction_id, review.claim_id): review for review in reviews
-    }
-    if len(review_by_key) != len(reviews):
-        raise ValueError("Each direction claim can have only one claim review")
-    valid_keys = {
-        (direction.id, claim.id)
-        for direction in directions
-        for claim in direction.claims
-    }
-    unknown_keys = set(review_by_key) - valid_keys
-    if unknown_keys:
-        direction_id, claim_id = sorted(unknown_keys)[0]
-        raise ValueError(
-            f"Claim review references an unknown claim: {direction_id}/{claim_id}"
-        )
+    review_by_key = _usable_reviews(
+        directions=directions, evidence_by_id=evidence_by_id, reviews=reviews
+    )
 
     results: list[EvaluatedClaim] = []
     for direction in directions:
         for claim in direction.claims:
             review = review_by_key.get((direction.id, claim.id))
-            if review is not None and set(claim.evidence_ids) & set(
-                review.opposing_evidence_ids
-            ):
-                raise ValueError(
-                    "The same evidence cannot support and oppose one claim"
-                )
             support = evidence_strength(claim.evidence_ids, evidence_by_id)
             opposition = (
                 evidence_strength(review.opposing_evidence_ids, evidence_by_id)
@@ -217,6 +217,57 @@ def _evaluate_claims(
                 )
             )
     return results
+
+
+def _usable_reviews(
+    *,
+    directions: Sequence[RankedDirection],
+    evidence_by_id: dict[UUID, EvidenceCard],
+    reviews: Sequence[ClaimReview],
+) -> dict[tuple[str, str], ClaimReview]:
+    """Keep only the reviews that can actually be applied to a claim.
+
+    An independent reviewer is a model, and a model can contradict itself or
+    cite evidence that does not exist. A review that cannot be applied is
+    dropped and the claim is judged as if no review arrived, which the Phase C
+    contract already defines: missing review stays `unknown` and is never
+    converted into negative evidence. Discarding one bad review is therefore
+    strictly safer than discarding the whole gate, which is what raising here
+    used to do — it failed the entire mission after the evidence was gathered.
+    """
+
+    claim_support = {
+        (direction.id, claim.id): set(claim.evidence_ids)
+        for direction in directions
+        for claim in direction.claims
+    }
+
+    usable: dict[tuple[str, str], ClaimReview] = {}
+    for review in reviews:
+        key = (review.direction_id, review.claim_id)
+        reason: str | None = None
+
+        if key not in claim_support:
+            reason = "it reviews a claim that is not under analysis"
+        elif key in usable:
+            # The reviewer contradicted itself; neither copy can be trusted
+            # over the other, so keep the first and drop the rest.
+            reason = "a review for this claim was already supplied"
+        elif claim_support[key] & set(review.opposing_evidence_ids):
+            reason = "it cites the same evidence as both support and opposition"
+        else:
+            try:
+                validate_evidence_references(
+                    review.opposing_evidence_ids, evidence_by_id
+                )
+            except UnknownEvidenceReferenceError:
+                reason = "it cites opposing evidence outside the supplied set"
+
+        if reason is not None:
+            logger.warning("Discarded claim review %s/%s: %s", key[0], key[1], reason)
+            continue
+        usable[key] = review
+    return usable
 
 
 def _is_poc_viable(

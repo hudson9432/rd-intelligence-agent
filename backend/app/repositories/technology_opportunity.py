@@ -35,7 +35,7 @@ class TechnologyOpportunityRepository:
             novelty=data.novelty,
             technical_maturity=data.technical_maturity,
             implementation_difficulty=data.implementation_difficulty,
-            business_impact=data.business_impact,
+            goal_alignment=data.goal_alignment,
             poc_feasibility=data.poc_feasibility,
             evidence_strength=data.evidence_strength,
             overall_score=data.overall_score,
@@ -45,6 +45,21 @@ class TechnologyOpportunityRepository:
         self.session.commit()
         self.session.refresh(opportunity)
         return opportunity
+
+    def replace_for_mission(
+        self, mission_id: UUID | str, opportunities: list[TechnologyOpportunityCreate]
+    ) -> list[TechnologyOpportunity]:
+        """Store one scoring round, discarding the previous one.
+
+        `save` only ever inserts, so a re-run would otherwise leave two
+        generations of scores side by side with nothing saying which is
+        current.
+        """
+
+        for existing in self.list_for_mission(mission_id):
+            self.session.delete(existing)
+        self.session.flush()
+        return [self.save(opportunity) for opportunity in opportunities]
 
     def list_for_mission(self, mission_id: UUID | str) -> list[TechnologyOpportunity]:
         statement = (

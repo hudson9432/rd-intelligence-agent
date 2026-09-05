@@ -5,9 +5,9 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Sequence
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.llm import LLMClient
+from app.core.llm import LLMClient, LLMStructuredOutputError
 from app.prompts.analyst import build_analyst_messages
 from app.prompts.critic import (
     build_claim_review_messages,
@@ -62,17 +62,18 @@ class LLMAnalysisAdapter:
         self, *, mission_goal: str, evidence: Sequence[EvidenceCard]
     ) -> Sequence[DirectionDraft]:
         bounded_evidence = list(evidence)[:MAX_LLM_EVIDENCE_CARDS]
-        completion = self._llm_client.complete(
-            build_analyst_messages(
-                mission_goal=mission_goal,
-                evidence=bounded_evidence,
-            )
-        )
-        if completion.mocked:
-            return _mock_directions(bounded_evidence)
         try:
-            return _DirectionBatch.model_validate_json(completion.content).directions
-        except ValidationError as error:
+            return self._llm_client.complete_structured(
+                build_analyst_messages(
+                    mission_goal=mission_goal,
+                    evidence=bounded_evidence,
+                ),
+                _DirectionBatch,
+                mock_factory=lambda: _DirectionBatch(
+                    directions=_mock_directions(bounded_evidence)
+                ),
+            ).directions
+        except LLMStructuredOutputError as error:
             raise AnalysisGenerationError(
                 "LLM response did not match the direction-generation contract"
             ) from error
@@ -85,18 +86,19 @@ class LLMAnalysisAdapter:
         evidence: Sequence[EvidenceCard],
     ) -> Sequence[CritiqueQuestionDraft]:
         bounded_evidence = list(evidence)[:MAX_LLM_EVIDENCE_CARDS]
-        completion = self._llm_client.complete(
-            build_critic_messages(
-                mission_goal=mission_goal,
-                directions=directions,
-                evidence=bounded_evidence,
-            )
-        )
-        if completion.mocked:
-            return _mock_questions(directions, bounded_evidence)
         try:
-            return _QuestionBatch.model_validate_json(completion.content).questions
-        except ValidationError as error:
+            return self._llm_client.complete_structured(
+                build_critic_messages(
+                    mission_goal=mission_goal,
+                    directions=directions,
+                    evidence=bounded_evidence,
+                ),
+                _QuestionBatch,
+                mock_factory=lambda: _QuestionBatch(
+                    questions=_mock_questions(directions, bounded_evidence)
+                ),
+            ).questions
+        except LLMStructuredOutputError as error:
             raise AnalysisGenerationError(
                 "LLM response did not match the critique-question contract"
             ) from error
@@ -109,24 +111,24 @@ class LLMAnalysisAdapter:
         evidence: Sequence[EvidenceCard],
     ) -> SemanticQuestionScores:
         bounded_evidence = list(evidence)[:MAX_LLM_EVIDENCE_CARDS]
-        completion = self._llm_client.complete(
-            build_question_review_messages(
-                question=question,
-                direction=direction,
-                evidence=bounded_evidence,
-            )
-        )
-        if completion.mocked:
-            completeness = 0.85 if (
-                question.evidence_ids or question.suggested_query
-            ) else 0.6
-            return SemanticQuestionScores(
-                rationality=0.85,
-                viewpoint_coverage=completeness,
-            )
         try:
-            return SemanticQuestionScores.model_validate_json(completion.content)
-        except ValidationError as error:
+            return self._llm_client.complete_structured(
+                build_question_review_messages(
+                    question=question,
+                    direction=direction,
+                    evidence=bounded_evidence,
+                ),
+                SemanticQuestionScores,
+                mock_factory=lambda: SemanticQuestionScores(
+                    rationality=0.85,
+                    viewpoint_coverage=(
+                        0.85
+                        if question.evidence_ids or question.suggested_query
+                        else 0.6
+                    ),
+                ),
+            )
+        except LLMStructuredOutputError as error:
             raise AnalysisGenerationError(
                 "LLM response did not match the question-review contract"
             ) from error
@@ -139,39 +141,55 @@ class LLMAnalysisAdapter:
         evidence: Sequence[EvidenceCard],
     ) -> Sequence[ClaimReview]:
         bounded_evidence = list(evidence)[:MAX_LLM_EVIDENCE_CARDS]
-        completion = self._llm_client.complete(
-            build_claim_review_messages(
-                analysis=analysis,
-                critique=critique,
-                evidence=bounded_evidence,
-            )
-        )
-        if completion.mocked:
-            return [
-                ClaimReview(
-                    direction_id=direction.id,
-                    claim_id=claim.id,
-                    opposing_evidence_ids=[],
-                    poc_testability=0.8,
-                    rationale=(
-                        "Deterministic mock review marks the stated hypothesis "
-                        "as measurable; it asserts no opposing evidence."
-                    ),
-                )
-                for direction in analysis.active_directions
-                for claim in direction.claims
-            ]
         try:
-            return _ClaimReviewBatch.model_validate_json(completion.content).reviews
-        except ValidationError as error:
+            return self._llm_client.complete_structured(
+                build_claim_review_messages(
+                    analysis=analysis,
+                    critique=critique,
+                    evidence=bounded_evidence,
+                ),
+                _ClaimReviewBatch,
+                mock_factory=lambda: _ClaimReviewBatch(
+                    reviews=[
+                        ClaimReview(
+                            direction_id=direction.id,
+                            claim_id=claim.id,
+                            opposing_evidence_ids=[],
+                            poc_testability=0.8,
+                            rationale=(
+                                "Deterministic mock review marks the stated "
+                                "hypothesis as measurable; it asserts no opposing "
+                                "evidence."
+                            ),
+                        )
+                        for direction in analysis.active_directions
+                        for claim in direction.claims
+                    ]
+                ),
+            ).reviews
+        except LLMStructuredOutputError as error:
             raise AnalysisGenerationError(
                 "LLM response did not match the claim-review contract"
             ) from error
 
 
 def _mock_directions(evidence: Sequence[EvidenceCard]) -> list[DirectionDraft]:
-    directions: list[DirectionDraft] = []
-    for card in sorted(evidence, key=lambda item: str(item.id)):
+    """Derive one direction per evidence card, deterministically.
+
+    Ordering and identifiers come from evidence *content*, never from
+    `EvidenceCard.id`. Those ids are assigned by persistence and differ on
+    every run, so keying on them made the mock non-deterministic: the Analyst
+    breaks coverage ties on direction title and id, so which directions became
+    active — and therefore whether the run reached a PoC candidate — varied
+    between identical runs. Invariant 7 requires demo and test modes to be
+    deterministic.
+
+    Evidence ids are still cited verbatim in the claims; provenance is
+    unaffected.
+    """
+
+    drafted: list[tuple[str, str, EvidenceCard]] = []
+    for card in evidence:
         statement = next(
             (
                 value
@@ -197,16 +215,25 @@ def _mock_directions(evidence: Sequence[EvidenceCard]) -> list[DirectionDraft]:
                 )
                 if value
             ),
-            f"Evidence {str(card.id)[:8]}",
+            statement,
         )
+        drafted.append((statement, title[:300], card))
+
+    drafted.sort(key=lambda item: (item[1].casefold(), item[0]))
+
+    directions: list[DirectionDraft] = []
+    for position, (statement, title, card) in enumerate(drafted):
+        # The position keeps ids unique when two cards state the same thing,
+        # and the sort above makes the position itself content-determined.
+        key = _stable_id("", str(position), title, statement)
         directions.append(
             DirectionDraft(
-                id=f"direction-{card.id.hex[:12]}",
-                title=title[:300],
+                id=f"direction{key}",
+                title=title,
                 summary=statement,
                 claims=[
                     DirectionClaim(
-                        id=f"claim-{card.id.hex[:12]}",
+                        id=f"claim{key}",
                         statement=statement,
                         evidence_ids=[card.id],
                     )

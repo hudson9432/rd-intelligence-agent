@@ -1,7 +1,11 @@
 """Tests for the provider-independent LLM client."""
 
+import json
+import time
+
 import httpx2 as httpx
 import pytest
+from pydantic import BaseModel
 
 from app.core.config import Settings
 from app.core.llm import (
@@ -11,6 +15,10 @@ from app.core.llm import (
     get_llm_client,
 )
 from app.schemas.llm import LLMMessage
+
+
+class _StructuredAnswer(BaseModel):
+    answer: str
 
 
 def _messages(user_content: str = "Summarize the source.") -> list[LLMMessage]:
@@ -93,6 +101,43 @@ def test_openai_compatible_client_parses_successful_response() -> None:
     assert completion.mocked is False
 
 
+def test_structured_completion_requests_json_mode_and_accepts_a_json_fence() -> None:
+    captured_payload: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_payload.update(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"content": '```json\n{"answer":"ready"}\n```'}}
+                ]
+            },
+        )
+
+    client = OpenAICompatibleLLMClient(
+        base_url="https://example.test/v1",
+        api_key="sk-test",
+        model="test-model",
+        transport=httpx.MockTransport(handler),
+    )
+
+    result = client.complete_structured(_messages(), _StructuredAnswer)
+
+    assert result.answer == "ready"
+    assert captured_payload["response_format"] == {"type": "json_object"}
+
+
+def test_mock_structured_completion_uses_the_explicit_deterministic_factory() -> None:
+    result = MockLLMClient().complete_structured(
+        _messages(),
+        _StructuredAnswer,
+        mock_factory=lambda: _StructuredAnswer(answer="offline"),
+    )
+
+    assert result.answer == "offline"
+
+
 def test_openai_compatible_client_retries_then_succeeds() -> None:
     attempts = {"count": 0}
 
@@ -114,6 +159,39 @@ def test_openai_compatible_client_retries_then_succeeds() -> None:
 
     assert completion.content == "ok"
     assert attempts["count"] == 2
+
+
+def test_openai_compatible_clients_share_configured_request_pacing() -> None:
+    request_times: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        request_times.append(time.monotonic())
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "ok"}}]},
+        )
+
+    transport = httpx.MockTransport(handler)
+    first = OpenAICompatibleLLMClient(
+        base_url="https://paced.example.test/v1",
+        api_key="sk-test",
+        model="paced-model",
+        min_request_interval_seconds=0.02,
+        transport=transport,
+    )
+    second = OpenAICompatibleLLMClient(
+        base_url="https://paced.example.test/v1",
+        api_key="sk-test",
+        model="paced-model",
+        min_request_interval_seconds=0.02,
+        transport=transport,
+    )
+
+    first.complete(_messages())
+    second.complete(_messages())
+
+    assert request_times[1] - request_times[0] >= 0.018
 
 
 @pytest.mark.parametrize(
