@@ -107,6 +107,7 @@ curl -X POST http://localhost:8000/missions \
 curl http://localhost:8000/missions
 curl http://localhost:8000/missions/{mission_id}
 curl http://localhost:8000/missions/{mission_id}/events
+curl http://localhost:8000/missions/{mission_id}/result
 ```
 
 Run backend tests from `backend/`:
@@ -191,22 +192,26 @@ curl http://localhost:8000/missions/{mission_id}
 curl http://localhost:8000/missions/{mission_id}/events
 ```
 
-The background request returns `202 Accepted` with `mission_url` and
-`events_url`. Poll until the mission status is `completed` or `failed`. The
-terminal `workflow_completed` event includes `evidence_count`, `decision`, and
-the evidence-linked `poc_candidates` summary.
+The background request returns `202 Accepted` with `mission_url`, `events_url`,
+and `result_url`. Poll until the mission status is `completed` or `failed`, then
+fetch the result URL. The terminal `workflow_completed` event also includes
+`evidence_count`, `decision`, and the evidence-linked `poc_candidates` summary.
+
+`GET /missions/{id}/result` returns the persisted sources, evidence cards,
+Phase C handoff and audit findings, every scored opportunity, the decision,
+the latest coverage report when available, and the PoC action plan. The audit
+distinguishes a technically completed workflow from a result that still needs
+human review because claims remain unknown, counterevidence is absent, or the
+eligible evidence contains no recorded result.
 
 The graph runs on LangGraph; routing and the re-search bound stay in
 deterministic Python, with LangGraph's step limit only as a backstop.
 
-Search, Evidence, and Analysis are real, so a run goes from the mission goal to
-planned queries, retrieved sources, persisted evidence, a Phase C handoff, and
-a decision — offline, with `MOCK_EXTERNAL_APIS` and `MOCK_LLM` at their
-defaults. It stops at a PoC *candidate*: the Decision stage follows the Phase C
-gate without scoring, and the Action stage produces no task plan, so the run
-reports `action_plan_skipped` rather than inventing one. An unimplemented phase always
-returns an empty result rather than plausible-looking data; see
-`backend/app/agents/pending_stages.py`.
+All five workflow stages are real. A run goes from the mission goal to planned
+queries, retrieved sources, persisted evidence, a Phase C handoff, scored
+candidate directions, a decision, and a stored PoC action plan. With
+`MOCK_EXTERNAL_APIS` and `MOCK_LLM` at their defaults, the same path is fully
+offline and deterministic.
 
 ### Using a real model
 
@@ -253,13 +258,8 @@ Free-tier providers often impose a low requests-per-minute quota. Set
 by Search, Evidence, Analyst, and Critic clients in the process, including retry
 attempts; paid tiers can leave it at `0`.
 
-## Current placeholders
+## Current limitations
 
-- `backend/app/agents/pending_stages.py`: the Decision and Action workflow
-  stages. Decision follows the Phase C gate without scoring anything, and
-  Action produces no plan, so a run ends at a PoC *candidate* rather than a
-  task plan.
-- Prompts beyond Evidence extraction and Phase C analysis.
 - `demo`: a mission reaches a PoC candidate offline, but mock replay ignores
   the query, so the Critic-driven re-search loop is not observable. See
   `demo/README.md`.

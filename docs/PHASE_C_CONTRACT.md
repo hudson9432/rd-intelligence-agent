@@ -25,7 +25,6 @@ whether the pool contains at least two effective cards from at least two
 independent source IDs. An effective card must have relevance of at least 0.2
 and extraction confidence of at least 0.6. Raw result count therefore cannot
 be used to fill the pool with weak cards.
-
 The handoff carries an `EvidenceSufficiencyReport` containing every evidence
 ID, its relevance-confidence quality score, its eligibility or exclusion
 reason, independent-source count, and counts of result- and limitation-bearing

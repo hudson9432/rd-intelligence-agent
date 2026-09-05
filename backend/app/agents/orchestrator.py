@@ -294,6 +294,7 @@ class WorkflowOrchestrator:
             decision=(
                 final.decision.model_dump(mode="json") if final.decision else None
             ),
+            handoff=(final.handoff.model_dump(mode="json") if final.handoff else None),
             poc_candidates=(
                 [
                     candidate.model_dump(mode="json")
@@ -433,6 +434,7 @@ class WorkflowOrchestrator:
             iteration=state.iteration,
             handoff_status=handoff.status,
             poc_candidate_count=len(handoff.poc_candidates),
+            handoff=handoff.model_dump(mode="json"),
         )
         update: dict[str, Any] = {"handoff": handoff}
 

@@ -5,12 +5,14 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.dependencies import (
+    MissionResultServiceDependency,
     MissionServiceDependency,
     WorkflowServiceDependency,
 )
 from app.models.agent_event import AgentEvent as AgentEventModel
 from app.models.research_mission import ResearchMission as ResearchMissionModel
 from app.schemas.agent_event import AgentEvent
+from app.schemas.mission_result import MissionResult
 from app.schemas.research_mission import (
     ResearchMissionCreate,
     ResearchMissionDetail,
@@ -75,6 +77,19 @@ def list_mission_events(
         raise _not_found(error) from error
 
 
+@router.get("/{mission_id}/result", response_model=MissionResult)
+def get_mission_result(
+    mission_id: UUID,
+    service: MissionResultServiceDependency,
+) -> MissionResult:
+    """Return the evidence, audit trail, decision, and action plan together."""
+
+    try:
+        return service.get(mission_id)
+    except MissionNotFoundError as error:
+        raise _not_found(error) from error
+
+
 @router.post("/{mission_id}/run", response_model=WorkflowRunResult)
 def run_mission_workflow(
     mission_id: UUID,
@@ -125,4 +140,5 @@ def run_mission_workflow_in_background(
         mission_id=mission_id,
         mission_url=f"/missions/{mission_id}",
         events_url=f"/missions/{mission_id}/events",
+        result_url=f"/missions/{mission_id}/result",
     )
