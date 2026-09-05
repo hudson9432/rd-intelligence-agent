@@ -4,7 +4,7 @@ import sqlite3
 from collections.abc import Generator
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -75,6 +75,27 @@ def init_db(database_engine: Engine = engine) -> None:
     if database_engine is engine:
         _ensure_sqlite_directory(settings.database_url)
     Base.metadata.create_all(bind=database_engine)
+    _migrate_sqlite_schema(database_engine)
+
+
+def _migrate_sqlite_schema(database_engine: Engine) -> None:
+    """Apply the small, known SQLite upgrades required by existing MVP databases."""
+
+    if database_engine.dialect.name != "sqlite":
+        return
+    inspector = inspect(database_engine)
+    table_name = "technology_opportunities"
+    if not inspector.has_table(table_name):
+        return
+    columns = {column["name"] for column in inspector.get_columns(table_name)}
+    if "business_impact" in columns and "goal_alignment" not in columns:
+        with database_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE technology_opportunities "
+                    "RENAME COLUMN business_impact TO goal_alignment"
+                )
+            )
 
 
 def get_db() -> Generator[Session]:

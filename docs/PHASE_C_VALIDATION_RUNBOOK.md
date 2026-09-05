@@ -85,7 +85,7 @@ Set-Location backend
 Set-Location ..
 ```
 
-目前基準是 `284 passed`。Provider request pacing 會在短暫提早喚醒時重新
+目前基準是 `287 passed`。Provider request pacing 會在短暫提早喚醒時重新
 檢查 deadline；同一 clock tick 的 AgentEvent timestamp 也會保持單調遞增。
 若這兩項仍失敗，應保留測試輸出並視為回歸，不再列為可忽略的 Windows
 偶發問題。

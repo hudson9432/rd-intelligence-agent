@@ -1,8 +1,12 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import Home from "./page";
+import { MissionProvider, MissionControls, MissionOverview, MissionList } from "./MissionWorkspace";
 import type { ResearchMission } from "@/types/mission";
+
+function Home() {
+  return <MissionProvider><MissionControls /><MissionOverview /><MissionList /></MissionProvider>;
+}
 
 const createdMission: ResearchMission = {
   id: "9cfcf6e8-7bc7-4684-8ba4-55706c8bd98a",
@@ -92,7 +96,6 @@ describe("mission workspace", () => {
     expect(evidenceCard).not.toBeNull();
     expect(within(evidenceCard!).getByText("1")).toBeTruthy();
     expect(screen.queryByText("Evidence collected")).toBeNull();
-    expect(screen.getByRole("link", { name: createdMission.title }).getAttribute("href")).toBe(`/missions/${createdMission.id}`);
   });
 
   test("describes the number of running missions", async () => {

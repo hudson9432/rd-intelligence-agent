@@ -1,0 +1,86 @@
+.page { max-width: 1240px; margin: 0 auto; padding: 40px 32px 80px; line-height: 1.65; overflow-wrap: anywhere; }
+.back { display: inline-block; margin-bottom: 28px; color: var(--accent); font-size: 14px; text-decoration: underline; }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; margin-bottom: 30px; }
+.header h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.2; letter-spacing: -1px; max-width: 800px; }
+.eyebrow { color: var(--accent); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.7px; margin-bottom: 10px; }
+.goal { color: var(--muted); margin-top: 16px; max-width: 800px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; min-width: 170px; }
+.primary, .secondary { border-radius: 9px; padding: 12px 18px; font-size: 13px; cursor: pointer; border: 1px solid var(--line); }
+.primary { background: var(--accent); color: white; border-color: var(--accent); }
+.secondary { background: white; color: var(--ink); }
+.primary:disabled, .secondary:disabled { opacity: .55; cursor: not-allowed; }
+.page a:focus-visible, .page button:focus-visible, .page summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.outcome { padding: 26px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.7); display: grid; grid-template-columns: 1fr auto; gap: 30px; }
+.outcome h2 { margin: 10px 0; font-size: 22px; }
+.badge { display: inline-block; background: #e6eee8; color: #29553c; border-radius: 6px; padding: 3px 9px; font-size: 12px; }
+.badge[data-status="failed"] { background: #faeae6; color: #91362d; }
+.stats { display: flex; align-items: center; gap: 24px; }
+.stats dt { font-size: 11px; color: var(--muted); }
+.stats dd { font-size: 27px; font-weight: 600; }
+.navigation { display: flex; flex-wrap: wrap; gap: 22px; border-bottom: 1px solid var(--line); padding: 22px 0; font-size: 14px; font-weight: 600; }
+.navigation a:hover { color: var(--accent); }
+.section { padding-top: 36px; scroll-margin-top: 20px; }
+.section h2 { margin-bottom: 12px; font-size: 26px; letter-spacing: -.5px; }
+.section h3 { font-size: 18px; }
+.section h4 { margin-top: 12px; }
+.section p { margin: 8px 0; }
+.muted, .id { color: var(--muted); font-size: 13px; }
+.id { font-family: var(--font-geist-mono); font-size: 10px; }
+.empty { background: rgba(255,255,255,.4); padding: 26px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); }
+.cards { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; margin-top: 20px; }
+.card { padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.8); margin: 14px 0; scroll-margin-top: 20px; }
+.cards .card { margin: 0; }
+.card h3 { margin-top: 10px; }
+.fields { margin: 18px 0; }
+.fields div { display: grid; grid-template-columns: 85px 1fr; gap: 12px; margin: 10px 0; font-size: 13px; }
+.fields dt { color: var(--muted); font-weight: 600; }
+.tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.tags span { padding: 2px 8px; background: #eef2ee; border-radius: 4px; font-size: 11px; }
+.page details { margin-top: 12px; }
+.page summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.page blockquote { border-left: 3px solid #a6c5b1; padding: 10px 14px; margin: 14px 0; font-size: 13px; background: #f5f7f3; white-space: pre-wrap; }
+.page ul { padding-left: 22px; }
+.subheading { margin: 26px 0 12px; }
+.sources { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.sources article { padding: 16px 20px; border-left: 2px solid #b2c8b8; background: rgba(255,255,255,.45); }
+.sources a, .references a, .callout a, .dependency, .id a, .tableScroll a { color: var(--accent); text-decoration: underline; }
+.callout { border-left: 4px solid var(--accent); padding: 18px 24px; background: #eaf1e9; margin: 20px 0; }
+.references { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; font-size: 11px; font-family: var(--font-geist-mono); }
+.tableScroll { overflow-x: auto; margin: 22px 0; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.tableScroll table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tableScroll caption { text-align: left; padding: 14px; font-weight: 700; }
+.tableScroll th, .tableScroll td { padding: 12px 14px; border-top: 1px solid var(--line); text-align: left; }
+.tableScroll thead { background: #edf2ed; }
+/* .page sets overflow-wrap: anywhere so long URLs and IDs cannot burst the
+   layout. Column headings are short labels, and breaking them mid-word
+   ('Diffic/ulty') costs more legibility than the narrow column saves. */
+.tableScroll thead th { overflow-wrap: normal; }
+.claim { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 10px; }
+.tasks { display: grid; gap: 14px; padding-left: 24px; margin-top: 20px; }
+.tasks li { background: rgba(255,255,255,.7); border: 1px solid var(--line); border-radius: 10px; padding: 22px; scroll-margin-top: 20px; }
+.dependency { margin-right: 12px; }
+.timeline { list-style: none; padding-left: 18px; border-left: 2px solid #c7d6ca; margin-top: 20px; }
+.timeline li { border-bottom: 1px solid var(--line); padding: 12px 0 18px; }
+.timeline time { color: var(--muted); margin-left: 12px; font-size: 11px; }
+/* While a run is in progress the entry that just landed lights up briefly, so
+   the page reads as live work rather than a static list that quietly grew. */
+.newest { animation: landed 1s ease-out; }
+@keyframes landed { from { background: #e6eee8; } to { background: transparent; } }
+/* Sits under the newest entry while a run is in progress. The analysis step can
+   hold for over a minute, and a still page reads as a stalled one. */
+.working { display: flex; gap: 7px; align-items: center; border-bottom: none; padding: 16px 0 4px; }
+.working span { width: 7px; height: 7px; border-radius: 50%; background: #6f9c81; animation: working 1.3s ease-in-out infinite; }
+.working span:nth-child(2) { animation-delay: .18s; }
+.working span:nth-child(3) { animation-delay: .36s; }
+@keyframes working { 0%, 75%, 100% { opacity: .22; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-5px); } }
+/* Reduced motion asks for no movement, not for no feedback. The dots keep
+   breathing on opacity alone so the page still reads as working, and the
+   newest-entry highlight stays because a colour fade never moves anything. */
+@keyframes breathing { 0%, 100% { opacity: .2; } 45% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .working span { animation-name: breathing; }
+}
+.error { padding: 20px; border: 1px solid #d4a29a; border-radius: 10px; margin: 20px 0; color: #91362d; background: #fcf0eb; }
+.failure { color: #91362d; }
+@media (max-width: 800px) { .header { flex-direction: column; } .outcome { grid-template-columns: 1fr; } .cards, .sources { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .page { padding: 24px 16px 60px; } .card, .outcome { padding: 18px; } .stats { gap: 16px; } .fields div { grid-template-columns: 1fr; gap: 3px; } .navigation { gap: 14px; } }
