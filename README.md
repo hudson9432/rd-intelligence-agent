@@ -67,9 +67,7 @@ flowchart LR
 
 需求：Python 3.11+（開發於 3.13.7）、Node.js 20.9+（開發於 22.14.0）、npm 10+。
 
-`backend/.env.example` 預設為**線上模式**（真實模型 + 真實 arXiv／GitHub 檢索），需要填入 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL` 三項。
-
-**不想準備金鑰**的話，把該檔案底部的 `MOCK_LLM` 與 `MOCK_EXTERNAL_APIS` 都改回 `true` 即可完全離線執行，整條流程一樣走得完。
+**離線模式不需要任何 API 金鑰**，可完整重現整條流程 —— `backend/.env.example` 原樣複製即可執行。改成線上模式（真實模型 + 真實 arXiv／GitHub 檢索）的步驟見下方。
 
 ```bash
 # 1. 取得原始碼
@@ -80,7 +78,7 @@ cd rd-intelligence-agent
 python3 -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -r backend/requirements.txt
-cp backend/.env.example backend/.env # 線上模式：填入三個 LLM_ 變數，或改回 MOCK_*=true
+cp backend/.env.example backend/.env # 原樣即可離線執行，不需金鑰
 
 cd backend
 python -m pytest                     # 302 passed
@@ -98,16 +96,7 @@ npm run dev                          # http://localhost:3000
 
 開啟 <http://localhost:3000>，建立任務後按 **Start research** 即可執行。
 
-### 切換離線模式
-
-`backend/.env` 底部：
-
-```bash
-MOCK_LLM=true            # 使用確定性的 mock 模型
-MOCK_EXTERNAL_APIS=true  # 重播已擷取的 arXiv／GitHub 回應
-```
-
-### 線上模式的設定
+### 切換到線上模式
 
 編輯 `backend/.env`：
 
