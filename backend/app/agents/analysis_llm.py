@@ -33,17 +33,29 @@ class AnalysisGenerationError(RuntimeError):
 
 MAX_LLM_EVIDENCE_CARDS = 50
 
+# These bounds exist to reject runaway output, not to enforce the working
+# limit: the Analyst and the Critic each slice the batch to their own limit
+# immediately afterwards. Setting a bound equal to that limit made a batch two
+# items over it fail the whole workflow, discarding an hour of retrieval and
+# extraction to save items the next line would have dropped anyway.
+DIRECTION_BATCH_CEILING = 48
+QUESTION_BATCH_CEILING = 96
+
 
 class _DirectionBatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    directions: list[DirectionDraft] = Field(min_length=1, max_length=12)
+    directions: list[DirectionDraft] = Field(
+        min_length=1, max_length=DIRECTION_BATCH_CEILING
+    )
 
 
 class _QuestionBatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    questions: list[CritiqueQuestionDraft] = Field(min_length=1, max_length=24)
+    questions: list[CritiqueQuestionDraft] = Field(
+        min_length=1, max_length=QUESTION_BATCH_CEILING
+    )
 
 
 class _ClaimReviewBatch(BaseModel):
