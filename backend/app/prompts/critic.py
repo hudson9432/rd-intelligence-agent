@@ -52,9 +52,7 @@ def build_critic_messages(
 ) -> list[LLMMessage]:
     payload = {
         "mission_goal": mission_goal,
-        "directions": [
-            direction.model_dump(mode="json") for direction in directions
-        ],
+        "directions": [direction.model_dump(mode="json") for direction in directions],
         "evidence": [card.model_dump(mode="json") for card in evidence],
     }
     return _messages(
@@ -85,8 +83,7 @@ def build_question_review_messages(
         system_prompt=QUESTION_REVIEW_SYSTEM_PROMPT,
         payload=payload,
         response_instruction=(
-            "Return JSON only as "
-            '{"rationality":0.0,"viewpoint_coverage":0.0}.'
+            'Return JSON only as {"rationality":0.0,"viewpoint_coverage":0.0}.'
         ),
     )
 

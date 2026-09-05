@@ -22,7 +22,6 @@ from app.schemas.analysis import (
 )
 from app.schemas.evidence_card import EvidenceCard
 from app.services.phase_c import build_phase_c_handoff
-
 from tests.test_phase_c_analysis import evidence_card
 
 GOAL = "Find a feasible direction."

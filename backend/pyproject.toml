@@ -1,2 +1,18 @@
+[tool.ruff]
+# Pin the first-party root so import sorting does not depend on the directory
+# ruff is invoked from. Without this, `ruff check .` inside backend/ and
+# `ruff check backend` from the repository root disagree about whether `app`
+# is first-party, and one of them always fails.
+src = ["."]
+target-version = "py313"
+
+[tool.ruff.lint]
+# Pinned rather than inherited: ruff's default selection changes between
+# releases, so an upgrade would otherwise turn CI red without anyone changing
+# code. E and F are correctness and unused-name checks; I keeps imports sorted.
+# Style families such as UP and FURB are worth adopting, but as their own
+# cleanup rather than inside the change that turns enforcement on.
+select = ["E4", "E7", "E9", "F", "I"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
