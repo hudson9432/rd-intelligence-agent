@@ -28,6 +28,10 @@ from app.schemas.workflow import WorkflowDecision
 
 DEFAULT_MAX_TASKS = 8
 MAX_GENERATED_TASKS = 12
+
+# Separate from MAX_GENERATED_TASKS, which bounds what a caller may ask for.
+# This one only rejects runaway output: the planner slices to its own limit.
+TASK_BATCH_CEILING = 48
 MAX_SUCCESS_METRICS = 6
 TASK_STATUS_TODO = "todo"
 
@@ -60,7 +64,7 @@ class _TaskPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     summary: str = Field(min_length=1)
-    tasks: list[_PlannedTask] = Field(min_length=1, max_length=MAX_GENERATED_TASKS)
+    tasks: list[_PlannedTask] = Field(min_length=1, max_length=TASK_BATCH_CEILING)
     success_metrics: list[str] = Field(min_length=1, max_length=MAX_SUCCESS_METRICS)
 
 
