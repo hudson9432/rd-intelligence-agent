@@ -24,13 +24,30 @@ class _QueryPlan(BaseModel):
     queries: list[QueryCandidate] = Field(
         min_length=1, max_length=MAX_GENERATED_QUERY_CANDIDATES
     )
-    notes: str = Field(min_length=1)
+    repository_queries: list[QueryCandidate] = Field(
+        default_factory=list, max_length=MAX_GENERATED_QUERY_CANDIDATES
+    )
+    """Short keyword queries for code hosting search.
+
+    Optional on purpose. A planner that omits it leaves retrieval exactly as it
+    was rather than introducing a new way for a round to fail.
+    """
+
+    notes: str = ""
+    """Free-text explanation, required of nobody.
+
+    A provider given a second list to fill has been observed dropping this one
+    instead. It carries no decision, so failing a whole retrieval round over its
+    absence would cost far more than it is worth.
+    """
 
 
 class SearchRetriever(Protocol):
     """Deterministic source-tool boundary used by the Search Agent."""
 
-    def retrieve(self, queries: Sequence[str]) -> Sequence[SourceResult]: ...
+    def retrieve(
+        self, queries: Sequence[str], repository_queries: Sequence[str] = ()
+    ) -> Sequence[SourceResult]: ...
 
 
 class SearchPlanningError(RuntimeError):
@@ -72,12 +89,22 @@ class SearchAgent:
             data=data,
             limit=self._max_queries,
         )
-        sources = list(self._retriever.retrieve(queries)) if queries else []
-        notes = plan.notes
+        repository_queries = _select_new_queries(
+            plan.repository_queries,
+            query_history=data.query_history,
+            limit=self._max_queries,
+        )
+        sources = (
+            list(self._retriever.retrieve(queries, repository_queries))
+            if queries
+            else []
+        )
+        notes = plan.notes.strip() or "The planner returned no explanation."
         if not queries:
             notes = f"{notes} No new query remained after history deduplication."
         return SearchAgentOutput(
             generated_queries=queries,
+            repository_queries=repository_queries,
             retrieved_sources=sources,
             notes=notes,
         )

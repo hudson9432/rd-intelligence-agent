@@ -372,6 +372,9 @@ class WorkflowOrchestrator:
             iteration=state.iteration,
             queries=queries,
             query_count=len(queries),
+            # Recorded even when empty: a repository search that matched
+            # nothing must stay distinguishable from one never made.
+            repository_queries=list(output.repository_queries),
             notes=output.notes,
         )
         emit(

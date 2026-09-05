@@ -18,9 +18,13 @@ GOAL = "Evaluate retrieval augmented generation for a customer-support product."
 class RecordingRetriever:
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
+        self.repository_calls: list[list[str]] = []
 
-    def retrieve(self, queries: Sequence[str]) -> Sequence[SourceResult]:
+    def retrieve(
+        self, queries: Sequence[str], repository_queries: Sequence[str] = ()
+    ) -> Sequence[SourceResult]:
         self.calls.append(list(queries))
+        self.repository_calls.append(list(repository_queries))
         return [
             SourceResult(
                 source_type="arxiv",
@@ -131,3 +135,51 @@ def test_malformed_query_plan_is_an_explicit_failure() -> None:
 
     with pytest.raises(SearchPlanningError, match="search-query contract"):
         agent.run(search_input())
+
+
+def test_repository_queries_reach_the_retriever_separately() -> None:
+    """Code search gets keywords; paper search keeps the prose queries."""
+
+    retriever = RecordingRetriever()
+    client = StaticLLMClient(
+        '{"queries":["Prose query about a topic"],'
+        '"repository_queries":["ticket classification llm"," ticket classification llm "],'
+        '"notes":"Split plan."}'
+    )
+
+    output = SearchAgent(client, retriever).run(search_input())
+
+    assert output.repository_queries == ["ticket classification llm"]
+    assert retriever.repository_calls == [["ticket classification llm"]]
+    assert "Prose query about a topic" in retriever.calls[0]
+
+
+def test_a_plan_without_repository_queries_retrieves_exactly_as_before() -> None:
+    """The field is optional, so omitting it must not change retrieval."""
+
+    retriever = RecordingRetriever()
+    client = StaticLLMClient('{"queries":["Prose query"],"notes":"No code search."}')
+
+    output = SearchAgent(client, retriever).run(search_input())
+
+    assert output.repository_queries == []
+    assert retriever.repository_calls == [[]]
+    assert retriever.calls == [output.generated_queries]
+
+
+def test_a_plan_without_notes_still_retrieves() -> None:
+    """Notes carry no decision, so their absence must not fail a round.
+
+    A provider given the repository_queries list to fill has been observed
+    dropping notes instead.
+    """
+
+    retriever = RecordingRetriever()
+    client = StaticLLMClient(
+        '{"queries":["Prose query"],"repository_queries":["topic keywords"]}'
+    )
+
+    output = SearchAgent(client, retriever).run(search_input())
+
+    assert output.notes
+    assert retriever.repository_calls == [["topic keywords"]]

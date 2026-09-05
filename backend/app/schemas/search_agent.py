@@ -28,6 +28,15 @@ class SearchAgentOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     generated_queries: list[SearchQuery] = Field(default_factory=list, max_length=4)
+    repository_queries: list[SearchQuery] = Field(default_factory=list, max_length=4)
+    """Keyword queries sent to code hosting search, kept apart from the prose
+    queries sent to paper search.
+
+    Carried out of the agent so a run records what it actually asked each
+    source. A repository search that quietly matched nothing is otherwise
+    indistinguishable from one that was never made.
+    """
+
     retrieved_sources: list[SourceResult] = Field(default_factory=list)
     source_errors: list[SourceError] = Field(default_factory=list)
     """Sources that could not be reached for this round.
