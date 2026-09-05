@@ -217,6 +217,7 @@ def test_action_plan_is_replaced_per_mission(session: Session) -> None:
                     id="task-1",
                     title="Baseline",
                     description="Establish a baseline GUI agent.",
+                    addresses="claim-1",
                     priority="high",
                     estimated_hours=4,
                     status="todo",

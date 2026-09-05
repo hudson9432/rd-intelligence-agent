@@ -134,6 +134,12 @@ verdicts do: a critic can always ask another question, and that is not the same
 as no direction being viable. Any question left unanswered travels into the PoC
 candidate as an unresolved question, which is what a PoC is for.
 
+ActionPlan preserves the `addresses` identifier on every task. Every retained
+Critic question becomes a `question-N` open item, and all such items must have a
+task before a plan is accepted. A provider may omit a non-critical extra task,
+but it cannot silently drop an important challenge because of ordering or the
+task limit.
+
 C therefore owns identification of targeted evidence gaps and the viability
 gate. The Search Agent converts those gaps and suggested searches into final,
 history-aware queries. On the first iteration, deterministic selection reserves

@@ -136,7 +136,7 @@ def test_a_task_addressing_nothing_real_is_discarded() -> None:
         + "]"
     )
 
-    plan = plan_with(client)
+    plan = plan_with(client, candidate(questions=[]))
 
     assert [task.title for task in plan.tasks_json] == ["Measure latency"]
 
@@ -145,7 +145,7 @@ def test_a_plan_grounded_in_nothing_at_all_fails() -> None:
     client = scripted("[" + task_json("invented-item") + "]")
 
     with pytest.raises(ActionPlanningError, match="addressed an open item"):
-        plan_with(client)
+        plan_with(client, candidate(questions=[]))
 
 
 def test_a_reviewer_question_can_be_addressed_by_position() -> None:
@@ -154,6 +154,14 @@ def test_a_reviewer_question_can_be_addressed_by_position() -> None:
     plan = plan_with(client)
 
     assert [task.title for task in plan.tasks_json] == ["Test second device"]
+    assert plan.tasks_json[0].addresses == "question-1"
+
+
+def test_a_plan_must_address_every_important_reviewer_question() -> None:
+    client = scripted("[" + task_json("c1", title="Measure latency") + "]")
+
+    with pytest.raises(ActionPlanningError, match="question-1"):
+        plan_with(client)
 
 
 # ------------------------------------------------------------ dependencies
@@ -180,7 +188,7 @@ def test_a_task_may_depend_only_on_an_earlier_task() -> None:
 def test_a_self_reference_and_an_unknown_position_are_dropped() -> None:
     client = scripted("[" + task_json("c1", depends="[1, 9]") + "]")
 
-    plan = plan_with(client)
+    plan = plan_with(client, candidate(questions=[]))
 
     assert plan.tasks_json[0].dependencies == []
 
@@ -188,7 +196,7 @@ def test_a_self_reference_and_an_unknown_position_are_dropped() -> None:
 def test_a_bad_dependency_does_not_lose_the_task() -> None:
     client = scripted("[" + task_json("c1", title="Keep me", depends="[7]") + "]")
 
-    plan = plan_with(client)
+    plan = plan_with(client, candidate(questions=[]))
 
     assert [task.title for task in plan.tasks_json] == ["Keep me"]
 
@@ -221,16 +229,15 @@ def test_task_identifiers_are_assigned_here_and_are_unique() -> None:
     assert all(task.status == "todo" for task in plan.tasks_json)
 
 
-def test_the_task_ceiling_is_enforced_here() -> None:
+def test_the_task_ceiling_cannot_drop_important_questions() -> None:
     poc = candidate(questions=[f"Question {index}?" for index in range(1, 6)])
     tasks = ",".join(
         task_json(item, title=f"Task {index}")
         for index, item in enumerate(open_items_for(poc), start=1)
     )
 
-    plan = plan_with(scripted("[" + tasks + "]"), poc, max_tasks=2)
-
-    assert len(plan.tasks_json) == 2
+    with pytest.raises(ActionPlanningError, match="task ceiling"):
+        plan_with(scripted("[" + tasks + "]"), poc, max_tasks=2)
 
 
 def test_an_unusable_provider_response_fails_the_plan() -> None:
@@ -253,6 +260,7 @@ def test_the_offline_plan_invents_nothing() -> None:
     for task in plan.tasks_json:
         settled = task.title.removeprefix("Settle: ")
         assert settled[:40] in corpus, "the mock must copy, not compose"
+    assert {task.addresses for task in plan.tasks_json} == set(open_items_for(poc))
 
 
 def test_the_offline_plan_is_deterministic() -> None:

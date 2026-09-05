@@ -105,7 +105,15 @@ class ActionAgent:
                 "LLM response did not match the task-plan contract"
             ) from error
 
-        tasks = _resolve_tasks(plan.tasks, open_items, limit=self._max_tasks)
+        important_questions = {
+            item_id for item_id in open_items if item_id.startswith("question-")
+        }
+        tasks = _resolve_tasks(
+            plan.tasks,
+            open_items,
+            required_items=important_questions,
+            limit=self._max_tasks,
+        )
         if not tasks:
             raise ActionPlanningError(
                 "No planned task addressed an open item from the candidate."
@@ -138,7 +146,11 @@ def open_items_for(candidate: PocCandidate) -> dict[str, str]:
 
 
 def _resolve_tasks(
-    planned: list[_PlannedTask], open_items: dict[str, str], *, limit: int
+    planned: list[_PlannedTask],
+    open_items: dict[str, str],
+    *,
+    required_items: set[str],
+    limit: int,
 ) -> list[ActionTask]:
     """Assign identifiers, keep only grounded tasks, and settle dependencies.
 
@@ -149,26 +161,51 @@ def _resolve_tasks(
     the work.
     """
 
-    grounded = [task for task in planned if task.addresses in open_items][:limit]
-    identifiers = [
-        f"task-{index}-{_digest(task.title, task.addresses)}"
-        for index, task in enumerate(grounded, start=1)
+    if len(required_items) > limit:
+        raise ActionPlanningError(
+            "The task ceiling cannot cover every important critique question."
+        )
+
+    grounded = [
+        (position, task)
+        for position, task in enumerate(planned, start=1)
+        if task.addresses in open_items
     ]
+    first_position_by_item: dict[str, int] = {}
+    for position, task in grounded:
+        first_position_by_item.setdefault(task.addresses, position)
+
+    missing = sorted(required_items - first_position_by_item.keys())
+    if missing:
+        raise ActionPlanningError(
+            "Planned tasks did not address every important critique question: "
+            + ", ".join(missing)
+        )
+
+    selected_positions = {first_position_by_item[item_id] for item_id in required_items}
+    for position, _task in grounded:
+        if len(selected_positions) >= limit:
+            break
+        selected_positions.add(position)
+    selected = [item for item in grounded if item[0] in selected_positions]
+    identifiers_by_position = {
+        position: f"task-{index}-{_digest(task.title, task.addresses)}"
+        for index, (position, task) in enumerate(selected, start=1)
+    }
 
     resolved: list[ActionTask] = []
-    for position, (task, task_id) in enumerate(
-        zip(grounded, identifiers, strict=True), start=1
-    ):
+    for position, task in selected:
         dependencies = [
-            identifiers[reference - 1]
+            identifiers_by_position[reference]
             for reference in dict.fromkeys(task.depends_on)
-            if 1 <= reference < position
+            if reference < position and reference in identifiers_by_position
         ]
         resolved.append(
             ActionTask(
-                id=task_id,
+                id=identifiers_by_position[position],
                 title=task.title,
                 description=task.description,
+                addresses=task.addresses,
                 priority=task.priority,
                 estimated_hours=task.estimated_hours,
                 dependencies=dependencies,

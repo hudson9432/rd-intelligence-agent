@@ -14,6 +14,10 @@ settled, or a question the reviewer left unanswered. Copy the identifier of the
 item a task addresses into its `addresses` field exactly as given; a task that
 addresses nothing on that list will be discarded.
 
+Every open item whose identifier starts with `question-` is a material Critic
+challenge. Address each of them with at least one task. The application rejects
+a plan that omits one, even when the rest of the plan is plausible.
+
 Plan work, never findings. Do not state what the experiment will conclude, and
 never invent a benchmark, dataset, tool, or measurement that the supplied
 material does not mention. Size each task in hours of engineering effort. A

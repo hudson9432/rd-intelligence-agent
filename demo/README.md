@@ -6,6 +6,14 @@ replays them whenever `MOCK_EXTERNAL_APIS=true` (the default), feeding them
 through the exact same parsers as the live path (`app/tools/arxiv.py`,
 `app/tools/github.py`) so mock and real output cannot drift.
 
+`fixtures/ecommerce_recommender_pro_con_arxiv_response.xml` is a separate,
+exact-ID capture for the contested e-commerce scenario. Its companion
+`ecommerce_recommender_scenario.json` assigns two papers to support and two to
+challenge one recommendation claim, and records the important questions the
+PoC must answer. The role assignment and questions are scenario metadata; all
+titles, abstracts, authors, dates, URLs, and reported metrics remain verbatim
+from the captured arXiv response.
+
 ## Refreshing them
 
 `capture_fixtures.py` is the one place in the repository that calls a real
@@ -13,6 +21,14 @@ external API. The application and the test suite never do.
 
 ```bash
 .venv/bin/python demo/capture_fixtures.py --query "your search" --limit 6
+```
+
+Refresh the e-commerce capture without changing the default RAG fixtures:
+
+```bash
+.venv/bin/python demo/capture_fixtures.py \
+  --arxiv-ids 2108.05891 2507.15113 2308.01118 1911.07698 \
+  --arxiv-only --fixture-stem ecommerce_recommender_pro_con
 ```
 
 It imports the request URLs and parameters from the tools themselves, parses
@@ -49,3 +65,6 @@ and the product's Critic-driven re-search story is not observable in mock mode.
 
 Making that work needs per-query fixture sets, and is the remaining piece of
 roadmap phase 14 along with the full mission-to-action-plan demo scenario.
+The e-commerce scenario test exercises captured sources through the Phase C
+verdict and Action Agent, but it is not yet selected automatically by the mock
+Search stage and therefore does not close that remaining work by itself.

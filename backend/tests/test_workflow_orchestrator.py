@@ -168,6 +168,7 @@ class PlanningAction:
                     id="t1",
                     title="Benchmark the quantized model",
                     description="Measure latency and accuracy on the target device.",
+                    addresses="claim-1",
                     priority="high",
                     estimated_hours=8,
                     status="todo",

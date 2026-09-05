@@ -10,6 +10,7 @@ class ActionTask(BaseModel):
     id: str = Field(min_length=1)
     title: str = Field(min_length=1)
     description: str = Field(min_length=1)
+    addresses: str = Field(min_length=1)
     priority: str = Field(min_length=1)
     estimated_hours: float = Field(ge=0)
     dependencies: list[str] = Field(default_factory=list)
