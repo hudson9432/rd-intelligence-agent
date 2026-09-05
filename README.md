@@ -1,307 +1,186 @@
 # R&D Intelligence Agent
 
-R&D Intelligence Agent is a hackathon project that will turn a high-level
-research goal into evidence-backed R&D decisions and an executable proof-of-
-concept plan.
+## 問題與目標
 
-The intended product loop is:
+技術選型的研究工作耗時且難以稽核。工程師要決定「該不該採用某個技術」時，通常得自行搜尋論文與開源專案、判讀彼此矛盾的結論、估算可行性，最後把這些整理成一份能說服團隊的提案。這個過程往往花掉數天，而且**結論與證據之間的連結很快就散失**——三個月後沒有人記得當初為什麼那樣決定。
 
-> Research → Evidence → Evaluate → Decide → Act
+R&D Intelligence Agent 把這個流程做成一條可稽核的自動化管線。使用者輸入一個研究目標，系統產出一份**每個主張都能回溯到原始出處**的技術決策與 PoC 執行計畫。
 
-The repository now runs a mission through Search, Evidence, Analyst, and Critic
-agents to an evidence-backed PoC candidate. It supports a deterministic offline
-mode and an OpenAI-compatible real-model mode. Decision scoring and Action
-planning remain explicit placeholders; the project does not claim that those
-unfinished stages are model-backed agents.
+- **目標使用者**：需要做技術選型決策的研發團隊、技術主管、獨立開發者
+- **預期影響**：把數天的調研壓縮到數十分鐘，並且讓決策的依據可以被第三者檢驗
 
-## Project status
+專案的核心約束是**不得虛構**。系統寧可回報「證據不足」，也不產出無法回溯的結論。
 
-| Area | Status |
-| --- | --- |
-| Repository and local environments | Complete |
-| FastAPI health API and initial schemas | Complete |
-| Next.js dashboard with mission list and creation | Complete |
-| SQLite persistence and mission APIs | Complete |
-| arXiv/GitHub research source tools (`POST /research/search`) | Complete |
-| Search Agent query planning and query-history deduplication | Complete |
-| Workflow orchestrator (`POST /missions/{id}/run`) | In progress |
-| Typed structured LLM output and provider integration | Complete |
-| Analyst, Critic, and the Phase C viability gate | Complete |
-| Goal to sources to evidence to decision, offline | Complete |
-| PoC action plan and Decision Engine scoring | Planned |
-| Deterministic offline demo | In progress |
+## 核心功能
 
-See [the implementation roadmap](docs/ROADMAP.md) for the ordered delivery
-phases and [the architecture guide](docs/ARCHITECTURE.md) for system boundaries.
+- **六個單一職責代理**：Search → Evidence → Analyst → Critic → Decision → Action，以型別化狀態溝通、彼此不直接呼叫（事件流上 Analyst 與 Critic 同屬 `analysis` 階段）
+- **強制溯源**：每一張證據卡的引文都必須逐字出現在原始文獻中，否則整張卡片被拒收；引用不存在證據 ID 的研究方向會被丟棄
+- **Critic 驅動的再搜尋迴圈**：Critic 找出證據缺口後產生針對性查詢，回頭再搜；迴圈次數有明確上限，用盡後強制以現有證據作結
+- **六維機會評分**：以 RICE 結構與 NASA TRL 錨點為基礎，對每個候選方向計算 novelty、goal alignment、technical maturity、PoC feasibility、evidence strength、implementation difficulty，落選方向一併保存以供稽核
+- **可執行的 PoC 計畫**：產出帶有工時估算、相依關係與可量測成功指標的任務清單
+- **完整事件流**：每個階段的進展都以事件形式持久化，前端即時輪詢呈現，失敗與降級（來源不可用、限流、證據被拒）都會顯性回報
 
-## Repository layout
+## 系統架構
 
-```text
-.
-├── backend/
-│   ├── app/
-│   │   ├── api/          # HTTP routes
-│   │   ├── agents/       # Separately testable agent components
-│   │   ├── core/         # Configuration and logging
-│   │   ├── db/           # SQLite engine and sessions
-│   │   ├── models/       # SQLAlchemy persistence models
-│   │   ├── prompts/      # Versioned LLM prompts
-│   │   ├── schemas/      # Pydantic API/domain schemas
-│   │   ├── repositories/ # Typed persistence operations
-│   │   ├── services/     # Mission and research-source use cases
-│   │   └── tools/        # arXiv, GitHub, HTTP retry, and dedupe tools
-│   ├── tests/
-│   ├── .env.example
-│   └── requirements.txt
-├── frontend/
-│   ├── app/
-│   ├── components/
-│   ├── lib/
-│   └── types/
-├── demo/                 # fixtures/: frozen arXiv/GitHub responses for mock mode
-├── docs/                 # Architecture and implementation roadmap
-├── AGENTS.md             # Required context and invariants for coding agents
-└── CONTRIBUTING.md       # Branch, test, and pull-request workflow
+```mermaid
+flowchart LR
+    Goal[研究目標] --> Search[Search Agent]
+    Search --> Evidence[Evidence Agent]
+    Evidence --> Analyst[Analyst Agent]
+    Analyst --> Critic[Critic Agent]
+    Critic -->|證據不足| Search
+    Critic -->|證據充足或次數用盡| Decision[Decision Engine]
+    Decision --> Action[Action Agent]
+    Action --> Brief[決策摘要 + PoC 計畫]
 ```
 
-## Prerequisites
+各層如何協作：
 
-- Python 3.11 or newer (developed with Python 3.13.7)
-- Node.js 20.9 or newer (developed with Node.js 22.14.0)
-- npm 10 or newer
-
-No API key is required while `MOCK_LLM=true` (the default).
-
-## Backend setup
-
-From the repository root:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r backend/requirements.txt
-cp backend/.env.example backend/.env
-cd backend
-uvicorn app.main:app --reload --port 8000
-```
-
-Check the service:
-
-```bash
-curl http://localhost:8000/health
-```
-
-Expected response:
-
-```json
-{"status":"ok","service":"rd-intelligence-agent-backend"}
-```
-
-Mission API:
-
-```bash
-curl -X POST http://localhost:8000/missions \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"Computer-use agents","goal":"Find a one-week PoC"}'
-
-curl http://localhost:8000/missions
-curl http://localhost:8000/missions/{mission_id}
-curl http://localhost:8000/missions/{mission_id}/events
-curl http://localhost:8000/missions/{mission_id}/result
-```
-
-Run backend tests from `backend/`:
-
-```bash
-../.venv/bin/python -m pytest
-```
-
-## Frontend setup
-
-In a separate terminal:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open <http://localhost:3000>. For production verification, run:
-
-```bash
-npm run lint
-npm run build
-npm start
-```
-
-## Configuration
-
-Backend configuration is loaded from process environment variables and
-`backend/.env`. Copy `backend/.env.example` for local development. Never commit
-the populated `.env` file or API keys.
-
-| Variable | Purpose | Default |
+| 層 | 內容 | 說明 |
 | --- | --- | --- |
-| `APP_ENV` | Runtime environment name | `development` |
-| `LOG_LEVEL` | Python log level | `INFO` |
-| `CORS_ORIGINS` | JSON list of allowed frontend origins | `["http://localhost:3000"]` |
-| `DATABASE_URL` | SQLAlchemy database URL | `sqlite:///./data/rd_intelligence.db` |
-| `DATABASE_ECHO` | Log generated SQL for debugging | `false` |
-| `LLM_BASE_URL` | OpenAI-compatible API base URL, normally ending in `/v1` | empty |
-| `LLM_API_KEY` | Secret provider credential | empty |
-| `LLM_MODEL` | Provider model name | empty |
-| `LLM_MIN_REQUEST_INTERVAL_SECONDS` | Process-wide pacing for one provider/model | `0` |
-| `MOCK_LLM` | Use the deterministic, offline LLM client | `true` |
-| `GITHUB_TOKEN` | Optional GitHub API credential for higher rate limits | empty |
-| `MOCK_EXTERNAL_APIS` | Replay deterministic arXiv/GitHub fixtures | `true` |
-| `DEMO_MODE` | Future offline end-to-end demo mode | `false` |
+| **前端** | Next.js App Router | 建立任務、觸發執行、輪詢進度、呈現證據／評分／決策／計畫 |
+| **API** | FastAPI + Pydantic | `POST /missions`、`POST /missions/{id}/run/async`、`GET /missions/{id}/workspace`、`GET /missions/{id}/events` |
+| **編排** | LangGraph `StateGraph` | 型別化狀態、純函式路由、節點回傳部分更新；再搜尋迴圈與次數上限在圖上表達 |
+| **代理** | 五個單一職責 Agent | 各自只認識自己的輸入輸出型別，彼此不直接呼叫 |
+| **模型** | provider-independent `LLMClient` | 抽象介面，可換任何 OpenAI 相容供應商；另有確定性 mock 供離線測試 |
+| **工具** | arXiv / GitHub 檢索 | 每個 host 獨立節流、指數退避、尊重 `Retry-After`，失敗降級為 `source_unavailable` 事件而非中斷流程 |
+| **資料庫** | SQLite + SQLAlchemy | 任務、來源、證據卡、事件、機會評分、行動計畫；圖執行結束後紀錄仍完整可查 |
 
-## Research source search
+**兩個來源用不同的查詢語言**：arXiv 做全文相關性排序，吃自然語言長句；GitHub 對名稱與描述做關鍵字 AND 比對，長句必然零結果。因此 Search Agent 分別產出兩組查詢。
 
-`POST /research/search` queries arXiv and GitHub concurrently, normalizes and
-deduplicates the combined results, and reports a single unavailable source in
-`errors` instead of failing the request:
+## 使用技術
+
+| 類型 | 技術／服務 | 用途 |
+| --- | --- | --- |
+| AI 模型 | 任何 OpenAI 相容的 Chat Completions 供應商 | 六個代理的結構化推理；已實測 `gemini-3.1-flash-lite` 與 `MiniMaxAI/MiniMax-M3` |
+| AI 編排 | LangGraph 1.2 | 型別化狀態圖、有界再搜尋路由 |
+| 前端 | Next.js 16 · React 19 · TypeScript 5 | 任務工作區、執行控制、進度輪詢、結果呈現 |
+| 前端測試 | Vitest · Testing Library · jsdom | 元件與 API 層測試 |
+| 後端 | FastAPI 0.141 · Pydantic · Uvicorn | HTTP API 與型別化契約 |
+| 資料庫 | SQLAlchemy 2.0 · SQLite | 任務、證據、事件、決策與計畫的持久化 |
+| 後端測試 | pytest · ruff | 302 個測試、lint 與格式檢查（CI 強制） |
+| 外部資料 | arXiv API · GitHub REST Search API | 論文與開源專案檢索 |
+| Sponsor 技術 | GMI Cloud（推論服務） | 以 OpenAI 相容端點提供 MiniMax-M3 推論，供六個代理的結構化生成使用 |
+
+
+## 安裝與執行
+
+需求：Python 3.11+（開發於 3.13.7）、Node.js 20.9+（開發於 22.14.0）、npm 10+。
+
+**離線模式不需要任何 API 金鑰**，可完整重現整條流程。
 
 ```bash
-curl -X POST http://localhost:8000/research/search \
+# 1. 取得原始碼
+git clone https://github.com/hudson9432/rd-intelligence-agent.git
+cd rd-intelligence-agent
+
+# 2. 後端
+python3 -m venv .venv
+source .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install -r backend/requirements.txt
+cp backend/.env.example backend/.env # 預設 MOCK_LLM=true，離線可跑
+
+cd backend
+python -m pytest                     # 302 passed
+python -m uvicorn app.main:app --port 8000
+```
+
+```bash
+# 3. 前端（另開一個終端機）
+cd frontend
+cp .env.example .env.local
+npm install
+npm test                             # 29 passed
+npm run dev                          # http://localhost:3000
+```
+
+開啟 <http://localhost:3000>，建立任務後按 **Start research** 即可執行。
+
+### 使用真實模型
+
+編輯 `backend/.env`：
+
+```bash
+MOCK_LLM=false
+LLM_BASE_URL=https://api.example.com/v1     # 任何 OpenAI 相容端點
+LLM_API_KEY=<你的金鑰>
+LLM_MODEL=<模型名稱>
+
+MOCK_EXTERNAL_APIS=false                    # 改為真實 arXiv / GitHub 檢索
+GITHUB_TOKEN=<選填，將搜尋額度由 10 提升到 30 次／分鐘>
+```
+
+供應商差異很大，以下三項建議依實際情況調整：
+
+```bash
+LLM_REQUEST_TIMEOUT_SECONDS=180             # 推理型模型單次可能超過一分鐘
+LLM_MAX_OUTPUT_TOKENS=8192                  # 預設 4096 會讓結構化輸出被截斷
+LLM_MIN_REQUEST_INTERVAL_SECONDS=4.0        # 依供應商的每分鐘上限調整
+```
+
+命令列執行一次完整任務：
+
+```bash
+curl -X POST http://127.0.0.1:8000/missions \
   -H "Content-Type: application/json" \
-  -d '{"query":"transformers","sources":["arxiv","github"],"max_results_per_source":5}'
+  -d '{"title":"RAG reliability","goal":"Decide whether retrieval augmented generation is reliable enough for our product."}'
+
+curl -X POST http://127.0.0.1:8000/missions/<mission-id>/run/async
+curl http://127.0.0.1:8000/missions/<mission-id>/workspace
 ```
 
-With `MOCK_EXTERNAL_APIS=true` (the default), it replays the fixed responses in
-`demo/fixtures/` through the same parsers as the live path, so mock and real
-output are structurally identical.
+## 作品展示
 
-## Running a mission workflow
+- 作品展示網址（選填）：
+- 評選影片：<!-- TODO -->
 
-`POST /missions/{mission_id}/run` executes the mission graph and records every
-stage transition as an `AgentEvent`. It waits for the complete result and is
-best suited to offline mode, tests, or direct backend calls:
+## 限制與未來工作
 
-```bash
-curl -X POST http://localhost:8000/missions/{mission_id}/run
-curl http://localhost:8000/missions/{mission_id}/events
-```
+### 已知限制
 
-For real providers, use the background endpoint so multiple model calls do not
-hold one HTTP request open:
+- **離線 Demo Mode 尚未完成**（Phase 14）。目前 `MOCK_EXTERNAL_APIS=true` 只對特定主題的凍結回應有意義，換題目會取得不相干的來源。
+- **證據抽取會有約 5% 的拒收率**。模型偶爾改寫或省略引文，溯源檢查會整張拒收。這是刻意的取捨——寧可少一張證據，不留來路不明的引文——但確實減少可用證據。
+- **外部服務限流**。arXiv 與 GitHub 都會限流；系統以退避與降級處理，不會中斷，但該輪的來源會減少。
+- **只實測過兩家模型供應商**。抽象介面是 provider-independent 的，但跨供應商的實測僅涵蓋 Gemini 與 MiniMax-M3。
+- **無身分驗證與多使用者隔離**。API 與前端目前假設單一本機使用者。
+- **成本未計量**。系統不追蹤 token 用量或費用。
 
-```bash
-curl -X POST http://localhost:8000/missions/{mission_id}/run/async
-curl http://localhost:8000/missions/{mission_id}
-curl http://localhost:8000/missions/{mission_id}/events
-```
+### 後續方向
 
-The background request returns `202 Accepted` with `mission_url`, `events_url`,
-and `result_url`. Poll until the mission status is `completed` or `failed`, then
-fetch the result URL. The terminal `workflow_completed` event also includes
-`evidence_count`, `decision`, and the evidence-linked `poc_candidates` summary.
+- 完成離線 Demo Mode，讓評選與展示不依賴外部服務可用性
+- 擴充來源（Papers with Code、Semantic Scholar、產業技術報告）
+- 決策紀錄的版本比較：同一目標在不同時間點的結論差異
+- Phase 12：使用者核可後將 PoC 任務寫入行事曆／專案管理工具
 
-`GET /missions/{id}/result` returns the persisted sources, evidence cards,
-Phase C handoff and audit findings, every scored opportunity, the decision,
-the latest coverage report when available, and the PoC action plan. The audit
-distinguishes a technically completed workflow from a result that still needs
-human review because claims remain unknown, counterevidence is absent, or the
-eligible evidence contains no recorded result.
+## 第三方服務、資料與素材
 
-The graph runs on LangGraph; routing and the re-search bound stay in
-deterministic Python, with LangGraph's step limit only as a backstop.
+| 項目 | 來源 | 用途 | 授權／條款 |
+| --- | --- | --- | --- |
+| arXiv API | <https://info.arxiv.org/help/api/> | 論文檢索與摘要 | [Terms of Use](https://info.arxiv.org/help/api/tou.html)；遵守其節流要求 |
+| GitHub REST Search API | <https://docs.github.com/rest/search> | 開源專案檢索 | [GitHub ToS](https://docs.github.com/site-policy/github-terms/github-terms-of-service) |
+| LangGraph | <https://github.com/langchain-ai/langgraph> | 代理編排 | MIT |
+| FastAPI | <https://github.com/fastapi/fastapi> | HTTP API | MIT |
+| SQLAlchemy | <https://github.com/sqlalchemy/sqlalchemy> | ORM | MIT |
+| Pydantic | <https://github.com/pydantic/pydantic> | 型別化契約 | MIT |
+| Next.js | <https://github.com/vercel/next.js> | 前端框架 | MIT |
+| React | <https://github.com/facebook/react> | UI | MIT |
+| `demo/fixtures/` 內的凍結回應 | 由 `demo/capture_fixtures.py` 從 arXiv／GitHub 實際擷取 | 離線重現 | 內容版權屬原作者；僅供本專案離線測試 |
 
-All five workflow stages are real. A run goes from the mission goal to planned
-queries, retrieved sources, persisted evidence, a Phase C handoff, scored
-candidate directions, a decision, and a stored PoC action plan. With
-`MOCK_EXTERNAL_APIS` and `MOCK_LLM` at their defaults, the same path is fully
-offline and deterministic.
+`demo/fixtures/` 的內容是**真實 API 回應的存檔**，不是手寫的假資料——為真實論文捏造摘要違反本專案的不得虛構原則。
 
-### Using a real model
+**本儲存庫不含任何金鑰、Token 或個人資料。** `backend/.env` 與 `frontend/.env.local` 均在 `.gitignore` 中，僅提供 `.env.example` 範本。
 
-Configure `backend/.env` without committing it:
+## 團隊成員
 
-```dotenv
-MOCK_LLM=false
-LLM_BASE_URL=https://your-openai-compatible-provider.example/v1
-LLM_API_KEY=your-secret-key
-LLM_MODEL=your-model-name
-LLM_MIN_REQUEST_INTERVAL_SECONDS=0
-```
+| 姓名 | 分工 |
+| --- | --- |
+| 陳昊呈 |  工作流狀態機、AgentEvent、PoC Action Plan |
+| 吳東儒 |  機會分析、評分、coverage、re-search決策 |
+| 黃書聖 |  Mission UI、進度呈現、結果頁、整合與 Demo |
+| 李坤益 |  Provider abstraction、結構化輸出、Evidence Agent |
+| 李威廷 |  arXiv、GitHub 搜尋、去重、Mock fixtures |
 
-The provider must support the Chat Completions endpoint and JSON object response
-mode. Structured calls send `response_format: {"type":"json_object"}` and then
-validate the response against the relevant Pydantic contract. A response wrapped
-in a single Markdown `json` fence is accepted; prose or a schema mismatch fails
-the workflow instead of silently becoming `no_viable_direction`.
-
-For Gemini through Google's OpenAI compatibility endpoint, this configuration
-has been exercised end to end:
-
-```dotenv
-MOCK_LLM=false
-LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-LLM_API_KEY=your-gemini-api-key
-LLM_MODEL=gemini-3.1-flash-lite
-LLM_MIN_REQUEST_INTERVAL_SECONDS=4.2
-```
-
-Evidence snippets must still come from the source. Provenance matching tolerates
-Unicode normalization and whitespace-only changes, but rejects paraphrases,
-translations, and invented text. If every retrieved source is rejected, the
-Evidence stage reports a provider failure rather than pretending no viable
-direction exists.
-
-`MOCK_EXTERNAL_APIS=true` may be kept while using a real LLM. In that mode the
-sources are frozen responses previously captured from the real arXiv and GitHub
-APIs, while Search/Evidence/Analyst/Critic cognition comes from the configured
-model. Set `MOCK_EXTERNAL_APIS=false` as well to query both source APIs live.
-
-Free-tier providers often impose a low requests-per-minute quota. Set
-`LLM_MIN_REQUEST_INTERVAL_SECONDS=4.2` for a 15 RPM quota. The limiter is shared
-by Search, Evidence, Analyst, and Critic clients in the process, including retry
-attempts; paid tiers can leave it at `0`.
-
-## Current limitations
-
-- Mock search has a deterministic targeted RAG profile for citation,
-  hallucination, prompt-injection, and failure-benchmark queries. Other topics
-  still replay the default fixture set rather than simulating a complete search
-  index. See `demo/README.md`.
-- The dashboard shows missions only. Evidence, decision, and action views, and
-  live progress from `GET /missions/{id}/events`, are not built.
-- The in-process background runner is appropriate for the hackathon demo, but
-  it is not a durable distributed job queue: a process restart can interrupt a
-  running mission.
-
-## Collaborating
-
-Before implementing a task:
-
-1. Read [AGENTS.md](AGENTS.md), including its product invariants and definition
-   of done. Coding agents must also obey any nested `AGENTS.md` files.
-2. Review [the roadmap](docs/ROADMAP.md) and choose a scoped GitHub issue.
-3. Create a focused branch, avoid overlapping ownership, and update backend and
-   frontend contracts together when a schema changes.
-4. Follow [CONTRIBUTING.md](CONTRIBUTING.md) and open a pull request using the
-   repository template. CI runs backend tests plus frontend lint/build.
-
-Critical rules for every contributor:
-
-- Preserve source provenance from retrieval through final recommendations.
-- Keep scoring, coverage, routing, deduplication, and loop limits deterministic.
-- Never place secrets in code, logs, fixtures, events, or commits.
-- Keep tests offline and deterministic with mock providers.
-- Clearly label placeholders and remaining evidence gaps.
-
-## Development and AI disclosure
-
-The repository foundation, collaboration setup, SQLite persistence, and mission
-APIs were prepared before the on-site product workflow work. OpenAI Codex was
-used to assist with scaffolding, implementation, tests, documentation, and
-repository operations. All changes remain visible in Git history.
-
-Current third-party foundations include Python, FastAPI, Pydantic, SQLAlchemy,
-SQLite, LangGraph, Next.js, React, TypeScript, arXiv, GitHub, and their locked
-package dependencies. Live model providers, datasets, generated media, and
-sponsor tools must be added to this disclosure when introduced.
 
 ## License
 
-MIT
+本專案採用 [MIT License](LICENSE)。
