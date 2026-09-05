@@ -34,6 +34,22 @@ class Settings(BaseSettings):
     `GITHUB_TOKEN` is set.
     """
 
+    llm_request_timeout_seconds: float = Field(default=30.0, gt=0, le=600)
+    """Seconds to wait for one provider response.
+
+    Raise it for a slower model, or one that reasons before answering: the
+    analysis prompts ask for the largest structured output in the workflow and
+    are the first to exceed a short timeout.
+    """
+
+    llm_max_output_tokens: int | None = Field(default=None, gt=0, le=32768)
+    """Cap on one provider response, or None to accept the provider's own.
+
+    Provider defaults differ and are easy to exceed: the critique prompt can
+    ask for a dozen questions at once, which one provider truncated at its
+    4096-token default about two thirds of the time.
+    """
+
     mock_llm: bool = True
     mock_external_apis: bool = True
     demo_mode: bool = False

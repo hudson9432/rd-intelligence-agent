@@ -26,13 +26,23 @@ SEARCH_MISSION_ID = UUID("11111111-1111-1111-1111-111111111111")
 
 
 class SequenceLLMClient(LLMClient):
+    """Replays scripted responses, repeating the last once they run out.
+
+    A structured call may ask more than once when a response does not match
+    its contract, so a double that runs dry would fail on the attempt count
+    rather than on the behaviour under test.
+    """
+
     def __init__(self, responses: list[str]) -> None:
         self.responses = responses
+        self.calls = 0
 
     def complete(self, messages: list[LLMMessage]) -> LLMCompletion:
         del messages
+        index = min(self.calls, len(self.responses) - 1)
+        self.calls += 1
         return LLMCompletion(
-            content=self.responses.pop(0), model="live-stub", mocked=False
+            content=self.responses[index], model="live-stub", mocked=False
         )
 
 
@@ -268,7 +278,12 @@ def test_one_invalid_provider_output_does_not_discard_valid_evidence(
     valid_snippet = "The method improves grounded answer quality."
     stage = PersistingEvidenceStage(
         session,
-        llm_client=SequenceLLMClient(["not-json", extraction_json(valid_snippet)]),
+        # A structured call asks twice before giving up, so the first source
+        # only fails if both of its attempts come back malformed. The third
+        # response, repeated by the double, serves the second source.
+        llm_client=SequenceLLMClient(
+            ["not-json", "not-json", extraction_json(valid_snippet)]
+        ),
     )
 
     cards = stage.extract(

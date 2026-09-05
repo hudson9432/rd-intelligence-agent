@@ -14,6 +14,7 @@ UnitScore = Annotated[float, Field(ge=0, le=1)]
 QuestionRejectionReason = Literal[
     "low_diversity", "low_rationality", "low_viewpoint_coverage"
 ]
+EvidenceExclusionReason = Literal["low_relevance", "low_extraction_confidence"]
 
 
 class DirectionClaim(BaseModel):
@@ -100,6 +101,40 @@ class TargetedResearchRequest(BaseModel):
     reason: str = Field(min_length=1)
 
 
+class EvidenceEligibility(BaseModel):
+    """Why one evidence card did or did not enter Phase C analysis."""
+
+    evidence_id: UUID
+    quality_score: UnitScore
+    eligible: bool
+    exclusion_reasons: list[EvidenceExclusionReason] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_eligibility(self) -> "EvidenceEligibility":
+        if self.eligible and self.exclusion_reasons:
+            raise ValueError("Eligible evidence cannot have exclusion reasons")
+        if not self.eligible and not self.exclusion_reasons:
+            raise ValueError("Excluded evidence needs at least one reason")
+        return self
+
+
+class EvidenceSufficiencyReport(BaseModel):
+    """Deterministic entry gate and audit record for Phase C."""
+
+    sufficient: bool
+    total_evidence_count: int = Field(ge=0)
+    effective_evidence_count: int = Field(ge=0)
+    independent_source_count: int = Field(ge=0)
+    result_bearing_count: int = Field(ge=0)
+    limitation_bearing_count: int = Field(ge=0)
+    minimum_effective_evidence: int = Field(ge=1)
+    minimum_independent_sources: int = Field(ge=1)
+    minimum_relevance: UnitScore
+    minimum_extraction_confidence: UnitScore
+    assessments: list[EvidenceEligibility] = Field(default_factory=list)
+    missing_requirements: list[str] = Field(default_factory=list)
+
+
 class CriticOutcome(BaseModel):
     """Critique questions that survive review plus the re-search signal."""
 
@@ -169,6 +204,7 @@ class PhaseCHandoff(BaseModel):
     poc_candidates: list[PocCandidate] = Field(default_factory=list, max_length=4)
     claim_assessments: list[EvaluatedClaim] = Field(default_factory=list)
     research_request: TargetedResearchRequest | None = None
+    evidence_sufficiency: EvidenceSufficiencyReport | None = None
     reason: str = Field(min_length=1)
 
     @model_validator(mode="after")

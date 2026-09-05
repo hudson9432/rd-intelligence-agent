@@ -18,6 +18,27 @@ Unknown support is scored as zero coverage, not as counter-evidence. Every
 cited evidence ID must occur in the supplied evidence set, and all supplied
 evidence must belong to one mission.
 
+## Evidence sufficiency entry gate
+
+Before asking the Analyst to generate directions, deterministic code checks
+whether the pool contains at least two effective cards from at least two
+independent source IDs. An effective card must have relevance of at least 0.2
+and extraction confidence of at least 0.6. Raw result count therefore cannot
+be used to fill the pool with weak cards.
+
+The handoff carries an `EvidenceSufficiencyReport` containing every evidence
+ID, its relevance-confidence quality score, its eligibility or exclusion
+reason, independent-source count, and counts of result- and limitation-bearing
+cards. Result and limitation counts are visible diagnostics rather than global
+hard gates because a non-experimental strategy source can still be relevant.
+Claim-specific support, counterevidence, and testability remain the later
+viability gate's responsibility.
+
+If the entry gate fails while research budget remains, C returns a bounded
+targeted research request without spending Analyst/Critic model calls. If the
+budget is exhausted, it returns `no_viable_direction`; low-quality or
+single-source evidence cannot become viable merely because search stopped.
+
 ## Analyst output
 
 AnalystOutcome has two states:
@@ -37,7 +58,8 @@ The question generator supplies more candidate questions than the result needs.
 Candidates are processed as a replacement queue. A question is rejected if any
 of these scores is below the configured threshold:
 
-- diversity: deterministic character-bigram distance from accepted questions;
+- diversity: deterministic character-bigram distance from accepted questions
+  for the same direction (questions for different directions do not compete);
 - rationality: supplied by an independent semantic reviewer;
 - viewpoint_coverage: supplied by the reviewer and measures whether the
   question plus cited evidence materially cover the challenged claim.
