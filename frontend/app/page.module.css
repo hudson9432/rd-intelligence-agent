@@ -151,6 +151,12 @@
   background: rgba(255, 255, 255, 0.62);
 }
 
+.refreshButton { padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--accent); font-size: 12px; cursor: pointer; }
+.refreshButton:disabled { opacity: .5; cursor: wait; }
+.missionLink { text-decoration: underline; text-underline-offset: 3px; }
+.missionLink:hover { color: var(--accent); }
+.missionLink:focus-visible, .refreshButton:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
 .missionForm label {
   display: grid;
   gap: 7px;

@@ -82,15 +82,17 @@ describe("mission workspace", () => {
     );
   });
 
-  test("does not report mission count as collected evidence", async () => {
+  test("reports mission totals without inventing evidence counts", async () => {
     vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(jsonResponse([createdMission])));
 
     render(<Home />);
     await screen.findByRole("heading", { name: createdMission.title });
 
-    const evidenceCard = screen.getByText("Evidence collected").closest("article");
+    const evidenceCard = screen.getByText("Total missions").closest("article");
     expect(evidenceCard).not.toBeNull();
-    expect(within(evidenceCard!).getByText("0")).toBeTruthy();
+    expect(within(evidenceCard!).getByText("1")).toBeTruthy();
+    expect(screen.queryByText("Evidence collected")).toBeNull();
+    expect(screen.getByRole("link", { name: createdMission.title }).getAttribute("href")).toBe(`/missions/${createdMission.id}`);
   });
 
   test("describes the number of running missions", async () => {

@@ -10,11 +10,10 @@ import {
   useState,
 } from "react";
 import type { ResearchMission } from "@/types/mission";
+import Link from "next/link";
+import { apiRequest } from "@/lib/api";
 import { EmptyMissions } from "./EmptyMissions";
 import styles from "../app/page.module.css";
-
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
-const apiRequestTimeoutMs = 10_000;
 
 type MissionContextValue = {
   missions: ResearchMission[];
@@ -22,6 +21,8 @@ type MissionContextValue = {
   isFormOpen: boolean;
   isSubmitting: boolean;
   error: string | null;
+  unavailable: boolean;
+  refreshMissions: () => void;
   toggleForm: () => void;
   createMission: (event: FormEvent<HTMLFormElement>) => Promise<void>;
 };
@@ -47,28 +48,6 @@ function mergeMissions(
   ];
 }
 
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init: RequestInit = {},
-) {
-  const requestController = new AbortController();
-  const abortRequest = () => requestController.abort();
-  const timeoutId = window.setTimeout(abortRequest, apiRequestTimeoutMs);
-
-  if (init.signal?.aborted) {
-    abortRequest();
-  } else {
-    init.signal?.addEventListener("abort", abortRequest, { once: true });
-  }
-
-  try {
-    return await fetch(input, { ...init, signal: requestController.signal });
-  } finally {
-    window.clearTimeout(timeoutId);
-    init.signal?.removeEventListener("abort", abortRequest);
-  }
-}
-
 export function MissionProvider({ children }: { children: ReactNode }) {
   const [missions, setMissions] = useState<ResearchMission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,22 +56,22 @@ export function MissionProvider({ children }: { children: ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const hasCreatedMission = useRef(false);
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function loadMissions() {
       try {
-        const response = await fetchWithTimeout(`${apiBaseUrl}/missions`, {
+        const loadedMissions = await apiRequest<ResearchMission[]>("/missions", {
           signal: controller.signal,
         });
-        if (!response.ok) {
-          throw new Error("Unable to load missions.");
-        }
-        const loadedMissions: ResearchMission[] = await response.json();
+        if (!Array.isArray(loadedMissions)) throw new Error("Invalid mission list.");
+        if (controller.signal.aborted) return;
         setMissions((currentMissions) =>
-          mergeMissions(currentMissions, loadedMissions),
+          mergeMissions(loadedMissions, currentMissions),
         );
+        setLoadError(null);
       } catch {
         if (!controller.signal.aborted && !hasCreatedMission.current) {
           setLoadError("Backend is unavailable. Start the API and refresh this page.");
@@ -106,7 +85,7 @@ export function MissionProvider({ children }: { children: ReactNode }) {
 
     void loadMissions();
     return () => controller.abort();
-  }, []);
+  }, [refresh]);
 
   async function createMission(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -121,15 +100,11 @@ export function MissionProvider({ children }: { children: ReactNode }) {
     };
 
     try {
-      const response = await fetchWithTimeout(`${apiBaseUrl}/missions`, {
+      const mission = await apiRequest<ResearchMission>("/missions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) {
-        throw new Error("Unable to create mission.");
-      }
-      const mission: ResearchMission = await response.json();
       hasCreatedMission.current = true;
       setLoadError(null);
       setMissions((currentMissions) =>
@@ -154,6 +129,12 @@ export function MissionProvider({ children }: { children: ReactNode }) {
         isFormOpen,
         isSubmitting,
         error: submissionError ?? loadError,
+        unavailable: loadError !== null,
+        refreshMissions: () => {
+          hasCreatedMission.current = false;
+          setIsLoading(true);
+          setRefresh((value) => value + 1);
+        },
         toggleForm: () => setIsFormOpen((isOpen) => !isOpen),
         createMission,
       }}
@@ -212,7 +193,7 @@ export function MissionControls() {
 }
 
 export function MissionOverview() {
-  const { missions } = useMissions();
+  const { missions, isLoading, unavailable } = useMissions();
   const activeMissionCount = missions.filter(
     (mission) => mission.status === "running",
   ).length;
@@ -227,11 +208,11 @@ export function MissionOverview() {
       detail: activeMissionDetail,
     },
     {
-      label: "Evidence collected",
-      value: 0,
-      detail: "Evidence pipeline not connected",
+      label: "Total missions",
+      value: missions.length,
+      detail: "Created in this workspace",
     },
-    { label: "Decisions ready", value: 0, detail: "Awaiting analysis" },
+    { label: "Completed missions", value: missions.filter((mission) => mission.status === "completed").length, detail: "Open a mission to review its outcome" },
   ];
 
   return (
@@ -239,8 +220,8 @@ export function MissionOverview() {
       {overview.map((item) => (
         <article className={styles.overviewItem} key={item.label}>
           <p>{item.label}</p>
-          <strong>{item.value}</strong>
-          <span>{item.detail}</span>
+            <strong>{isLoading || unavailable ? "—" : item.value}</strong>
+            <span>{unavailable ? "Unavailable" : isLoading ? "Loading..." : item.detail}</span>
         </article>
       ))}
     </section>
@@ -248,7 +229,7 @@ export function MissionOverview() {
 }
 
 export function MissionList() {
-  const { isLoading, missions } = useMissions();
+  const { isLoading, missions, unavailable, refreshMissions } = useMissions();
   const missionCountLabel = `${missions.length} ${
     missions.length === 1 ? "mission" : "missions"
   }`;
@@ -264,17 +245,19 @@ export function MissionList() {
           <p className={styles.sectionLabel}>Workspace</p>
           <h2 id="recent-missions-title">Recent missions</h2>
         </div>
-        <span>{isLoading ? "Loading..." : missionCountLabel}</span>
+        <div><span>{isLoading ? "Loading..." : unavailable ? "Unavailable" : missionCountLabel}</span>{" "}
+          <button type="button" className={styles.refreshButton} disabled={isLoading} onClick={refreshMissions}>Refresh missions</button>
+        </div>
       </div>
       <div className={styles.missionSurface}>
-        {missions.length === 0 && !isLoading ? (
+        {unavailable && missions.length === 0 ? <p className={styles.errorMessage}>Mission list unavailable. Refresh to try again.</p> : missions.length === 0 && !isLoading ? (
           <EmptyMissions />
         ) : (
           <div className={styles.missionList}>
             {missions.map((mission) => (
               <article className={styles.missionItem} key={mission.id}>
                 <div>
-                  <h3>{mission.title}</h3>
+                  <h3><Link className={styles.missionLink} href={`/missions/${mission.id}`}>{mission.title}</Link></h3>
                   <p>{mission.goal}</p>
                 </div>
                 <span className={styles.missionStatus}>{mission.status}</span>
