@@ -25,7 +25,6 @@ from app.schemas.source_result import (
 from app.schemas.workflow import WorkflowState
 from app.services.analysis_stage import PhaseCAnalysisStage
 from app.services.search_stage import ResearchSourceSearchStage
-
 from tests.test_workflow_orchestrator import MISSION_ID, make_source
 
 GOAL = "Decide whether the approach is worth a proof of concept."
