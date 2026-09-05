@@ -131,8 +131,7 @@ curl http://127.0.0.1:8000/missions/<mission-id>/workspace
 
 ## 作品展示
 
-- 作品展示網址（選填）：
-- 評選影片：<!-- TODO -->
+- 評選影片：https://youtu.be/kRJOjlRijlg?si=iEPjbOC16-kenocu
 
 ## 限制與未來工作
 
