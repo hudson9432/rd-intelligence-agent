@@ -14,7 +14,7 @@ Status values: `complete`, `in progress`, `next`, `planned`, `optional`.
 | 08 | complete | Critic Agent, coverage scoring, targeted query output |
 | 09 | in progress | LangGraph orchestrator and bounded re-search routing |
 | 10 | planned | Decision Engine |
-| 11 | planned | Action Agent and PoC task plan |
+| 11 | complete | Action Agent and PoC task plan |
 | 12 | optional | User-approved calendar proposal/execution integration |
 | 13 | in progress | Mission, evidence, decision, and action frontend views |
 | 14 | planned | Deterministic offline Demo Mode |
@@ -53,9 +53,17 @@ Phases 07 and 08 landed with the Analyst, Critic, coverage scoring, and
 targeted query output, recorded in `docs/PHASE_C_CONTRACT.md`. The table said
 `planned` for longer than it should have.
 
+Phase 11 turns the selected PoC candidate into a task plan. Every task must
+name an open item the candidate carries — an unsettled claim or a reviewer
+question — and a task naming nothing is discarded, so a plan cannot be a
+generic checklist that fits any mission. Identifiers, dependency resolution,
+effort aggregation, and the task ceiling are decided in code; the model writes
+only the work. A task may depend only on an earlier task, which makes a cycle
+unrepresentable rather than something to detect.
+
 A mission now runs end to end offline: goal to sources to persisted evidence to
-a Phase C handoff to a decision. It stops short of an action plan because
-phase 11 is not built.
+a Phase C handoff to a decision to a stored action plan. Only the Decision
+stage is still provisional.
 
 Real-provider runs can be queued through `POST /missions/{id}/run/async` and
 observed through mission status plus persisted events. This in-process runner

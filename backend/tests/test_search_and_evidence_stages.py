@@ -355,8 +355,7 @@ def test_the_run_records_each_stage_as_an_event(session: Session) -> None:
         "evidence_extracted",
         "handoff_produced",
         "decision_made",
-        # Phase 11 is not built, so the plan is skipped rather than invented.
-        "action_plan_skipped",
+        "action_plan_created",
         "workflow_completed",
     ]
     completed = result.events[-1]

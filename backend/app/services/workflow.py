@@ -14,7 +14,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import WorkflowOrchestrator, WorkflowStages
-from app.agents.pending_stages import PendingActionStage, PendingDecisionStage
+from app.agents.pending_stages import PendingDecisionStage
 from app.core.config import Settings, get_settings
 from app.core.llm import LLMClient, get_llm_client
 from app.repositories.action_plan import ActionPlanRepository
@@ -22,6 +22,7 @@ from app.repositories.agent_event import AgentEventRepository
 from app.schemas.agent_event import AgentEventCreate
 from app.schemas.research_mission import MissionStatus, ResearchMissionUpdate
 from app.schemas.workflow import WorkflowEvent, WorkflowRunResult, WorkflowState
+from app.services.action_stage import PocActionStage
 from app.services.analysis_stage import PhaseCAnalysisStage
 from app.services.evidence_stage import PersistingEvidenceStage
 from app.services.mission import MissionService
@@ -74,7 +75,7 @@ def default_stages(
             settings=resolved_settings,
         ),
         decision=PendingDecisionStage(),
-        action=PendingActionStage(),
+        action=PocActionStage(shared_llm_client, settings=resolved_settings),
     )
 
 

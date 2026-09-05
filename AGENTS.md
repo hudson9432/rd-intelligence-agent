@@ -45,9 +45,10 @@ Phases 1–2 (repository foundation and persistence) are complete:
 - The workflow's Search, Evidence, and Analysis stages are real: Search plans
   bounded, history-aware queries before deterministic retrieval; a mission then
   runs through persisted evidence and a Phase C handoff to a decision, entirely
-  offline. Decision is provisional and Action is still a placeholder, so a run
-  stops short of a PoC task plan and reports `action_plan_skipped` rather than
-  inventing one.
+  offline, and Action turns the selected candidate into a stored PoC task plan.
+  Every task must name an open item the candidate carries, so a plan cannot be
+  a generic checklist. Only Decision is still provisional: it follows the Phase
+  C gate without scoring anything.
 - Real-provider runs can use `POST /missions/{id}/run/async`; the in-process
   background worker uses its own database session and exposes progress and its
   terminal summary through persisted mission events.
@@ -70,9 +71,11 @@ Phase 3 research-source tools are implemented:
 The Search, Evidence, Analyst, and Critic agents are wired into the public
 mission workflow and can use a real provider. Search uses the LLM only to plan
 queries; arXiv/GitHub retrieval and query-history deduplication remain bounded,
-deterministic code. Decision is provisional and Action is a placeholder, so do
-not claim the complete Research → Act product loop is implemented. The
-in-process background runner is not a durable job queue.
+deterministic code. Action plans the PoC, but identifiers, dependency
+resolution, effort aggregation, and the task ceiling stay in code rather than
+being taken from the model. Decision is still provisional, so do not claim the
+decision itself is scored. The in-process background runner is not a durable
+job queue.
 
 Check [docs/ROADMAP.md](docs/ROADMAP.md) before starting work and update it only
 when a phase is genuinely complete.
@@ -184,8 +187,8 @@ A change is complete only when:
 
 ## Recommended task order
 
-Follow the numbered roadmap. Search, Evidence, Analyst, and Critic are now wired;
-prioritize the real Decision and Action stages, durable execution, and visible
+Follow the numbered roadmap. Search, Evidence, Analyst, Critic, and Action are
+now wired; prioritize the real Decision stage, durable execution, and visible
 frontend progress without weakening provenance. Calendar integration remains
 optional and should be done only after the core research-to-action loop is
 reliable.
