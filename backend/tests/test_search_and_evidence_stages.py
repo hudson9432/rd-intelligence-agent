@@ -137,9 +137,10 @@ def test_search_does_not_return_a_source_twice_across_rounds() -> None:
 
     assert first.retrieved_sources
     assert second.generated_queries == ["RAG failure benchmarks"]
-    # Mock replay ignores the query, so round two is entirely a repeat. That
-    # is the documented offline limitation, and the stage must absorb it.
-    assert second.retrieved_sources == []
+    assert second.retrieved_sources
+    assert {source.url for source in first.retrieved_sources}.isdisjoint(
+        source.url for source in second.retrieved_sources
+    )
 
 
 def test_each_stage_instance_starts_with_no_memory() -> None:

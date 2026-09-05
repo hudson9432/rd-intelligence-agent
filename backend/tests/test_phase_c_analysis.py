@@ -16,7 +16,11 @@ from app.schemas.analysis import (
     SemanticQuestionScores,
 )
 from app.schemas.evidence_card import EvidenceCard
-from app.services.phase_c import build_phase_c_handoff, classify_claim_verdict
+from app.services.phase_c import (
+    build_phase_c_handoff,
+    classify_claim_verdict,
+    classify_resolution_status,
+)
 from app.services.scoring import (
     direction_evidence_coverage,
     question_diversity,
@@ -490,6 +494,89 @@ def test_all_rejected_questions_end_phase_c_with_targeted_research() -> None:
     assert "It improves purchase conversion." in outcome.research_request.queries[0]
 
 
+def test_reasonable_uncovered_question_is_retained_as_a_research_gap() -> None:
+    mission_id = uuid4()
+    card = evidence_card(mission_id=mission_id, relevance=0.9, confidence=0.9)
+    draft = direction("d1", "Hybrid recommender", [card.id], claim_id="c1")
+    analysis = AnalystOutcome(
+        status="ready", active_directions=[ranked_direction(draft)]
+    )
+    uncovered = question(
+        "gap-1",
+        direction_id="d1",
+        claim_id="c1",
+        text="Does the result survive seasonal demand shifts?",
+        evidence_ids=[],
+        suggested_query="hybrid recommender seasonal demand evaluation",
+    )
+
+    outcome = CriticAgent(
+        FixedQuestionGenerator([uncovered]),
+        ScoreByQuestionReviewer({"gap-1": (0.9, 0.2)}),
+    ).critique(
+        mission_goal="Evaluate conversational commerce.",
+        analysis=analysis,
+        evidence=[card],
+    )
+
+    assert outcome.status == "research_required"
+    assert outcome.accepted_questions == []
+    assert [item.question.id for item in outcome.research_gap_questions] == ["gap-1"]
+    assert outcome.rejected_questions == []
+    assert outcome.research_request is not None
+    assert outcome.research_request.queries == [
+        "hybrid recommender seasonal demand evaluation"
+    ]
+
+
+def test_research_gap_becomes_an_unresolved_poc_question_after_budget_limit() -> None:
+    mission_id = uuid4()
+    card = evidence_card(mission_id=mission_id, relevance=0.9, confidence=0.9)
+    draft = direction("d1", "Hybrid recommender", [card.id], claim_id="c1")
+    analysis = AnalystOutcome(
+        status="ready", active_directions=[ranked_direction(draft)]
+    )
+    gap_text = "Does the result survive seasonal demand shifts?"
+    critique = CriticAgent(
+        FixedQuestionGenerator(
+            [
+                question(
+                    "gap-1",
+                    direction_id="d1",
+                    claim_id="c1",
+                    text=gap_text,
+                    evidence_ids=[],
+                    suggested_query=("hybrid recommender seasonal demand evaluation"),
+                )
+            ]
+        ),
+        ScoreByQuestionReviewer({"gap-1": (0.9, 0.2)}),
+    ).critique(
+        mission_goal="Evaluate conversational commerce.",
+        analysis=analysis,
+        evidence=[card],
+    )
+
+    handoff = build_phase_c_handoff(
+        mission_goal="Evaluate conversational commerce.",
+        analysis=analysis,
+        critique=critique,
+        evidence=[card],
+        claim_reviews=[
+            ClaimReview(
+                direction_id="d1",
+                claim_id="c1",
+                poc_testability=0.9,
+                rationale="Seasonal robustness can be measured in the PoC.",
+            )
+        ],
+        research_exhausted=True,
+    )
+
+    assert handoff.status == "ready_for_poc"
+    assert handoff.poc_candidates[0].unresolved_questions == [gap_text]
+
+
 def test_phase_c_hands_evidence_grounded_poc_candidate_to_d() -> None:
     mission_id = uuid4()
     card = evidence_card(mission_id=mission_id, relevance=0.9, confidence=0.9)
@@ -596,6 +683,22 @@ def test_missing_counterevidence_review_is_unknown_not_negative() -> None:
     )
 
 
+def test_counterarguments_are_classified_by_resolvability() -> None:
+    assert (
+        classify_resolution_status(verdict="supported", poc_testability=0.9)
+        == "resolved"
+    )
+    assert (
+        classify_resolution_status(verdict="contested", poc_testability=0.9)
+        == "poc_testable"
+    )
+    assert (
+        classify_resolution_status(verdict="unknown", poc_testability=None)
+        == "research_gap"
+    )
+    assert classify_resolution_status(verdict="refuted", poc_testability=0.9) == "fatal"
+
+
 def test_strong_counterevidence_refutes_a_weakly_supported_claim() -> None:
     assert (
         classify_claim_verdict(
@@ -662,6 +765,7 @@ def test_contested_but_testable_claim_can_still_become_a_poc() -> None:
 
     assert handoff.status == "ready_for_poc"
     assert handoff.claim_assessments[0].verdict == "contested"
+    assert handoff.claim_assessments[0].resolution_status == "poc_testable"
 
 
 def test_no_poc_only_after_new_evidence_remains_insufficient() -> None:

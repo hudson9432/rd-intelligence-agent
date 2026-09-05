@@ -120,3 +120,4 @@ class WorkflowRunAccepted(BaseModel):
     message: str = "Workflow accepted for background execution."
     mission_url: str
     events_url: str
+    result_url: str

@@ -69,3 +69,9 @@ test("renders without programmatic scrolling available", () => {
 
   expect(screen.getByText("First step")).toBeTruthy();
 });
+
+test("shows which claim or critique question each PoC task addresses", () => {
+  render(<MissionResults workspace={completedWorkspace} />);
+
+  expect(screen.getByText("Addresses: claim-1")).toBeTruthy();
+});

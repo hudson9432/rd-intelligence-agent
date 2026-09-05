@@ -111,6 +111,7 @@ def test_background_run_returns_202_and_exposes_polling_urls(
         "message": "Workflow accepted for background execution.",
         "mission_url": f"/missions/{mission_id}",
         "events_url": f"/missions/{mission_id}/events",
+        "result_url": f"/missions/{mission_id}/result",
     }
     assert scheduled == [mission_id]
     assert MissionService(session).get(mission_id).status == MissionStatus.RUNNING

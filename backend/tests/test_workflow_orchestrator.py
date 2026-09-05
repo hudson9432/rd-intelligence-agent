@@ -74,6 +74,7 @@ def make_poc_handoff(direction_id: str = "d1") -> PhaseCHandoff:
                         supporting_evidence_ids=[evidence_id],
                         support_strength=0.6,
                         verdict="supported",
+                        resolution_status="resolved",
                         rationale="Two independent sources agree.",
                     )
                 ],
@@ -168,6 +169,7 @@ class PlanningAction:
                     id="t1",
                     title="Benchmark the quantized model",
                     description="Measure latency and accuracy on the target device.",
+                    addresses="claim-1",
                     priority="high",
                     estimated_hours=8,
                     status="todo",

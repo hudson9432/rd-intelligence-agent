@@ -25,7 +25,6 @@ whether the pool contains at least two effective cards from at least two
 independent source IDs. An effective card must have relevance of at least 0.2
 and extraction confidence of at least 0.6. Raw result count therefore cannot
 be used to fill the pool with weak cards.
-
 The handoff carries an `EvidenceSufficiencyReport` containing every evidence
 ID, its relevance-confidence quality score, its eligibility or exclusion
 reason, independent-source count, and counts of result- and limitation-bearing
@@ -33,6 +32,14 @@ cards. Result and limitation counts are visible diagnostics rather than global
 hard gates because a non-experimental strategy source can still be relevant.
 Claim-specific support, counterevidence, and testability remain the later
 viability gate's responsibility.
+
+Evidence access is asymmetric. The Analyst receives only support-eligible
+cards. The Critic and claim reviewer receive a challenge pool containing every
+support card plus cards with extraction confidence of at least 0.6, relevance
+of at least 0.1, and a stated result or limitation. A challenge-only card can
+expose a conflicting result or missing control, but it cannot generate a
+direction or increase that direction's support score. The report records both
+permissions and the challenge-pool count.
 
 If the entry gate fails while research budget remains, C returns a bounded
 targeted research request without spending Analyst/Critic model calls. If the
@@ -69,6 +76,13 @@ the Critic creates a bounded research request from the least-supported claims.
 Accepted questions with suggested searches also produce a targeted request of
 at most three queries.
 
+A question is retained as a `research_gap` instead of rejected when diversity
+and rationality pass, viewpoint coverage fails specifically because the
+question cites no current evidence, and it includes a concrete follow-up
+query. Research gaps consume the same bounded question budget, trigger
+targeted re-search, and become unresolved PoC questions if the search budget
+is exhausted. Low-rationality or repetitive questions are still rejected.
+
 ## Pro/con claim verdicts
 
 After targeted evidence is available, an independent reviewer identifies
@@ -93,6 +107,20 @@ Each claim receives one of four verdicts:
 - contested: meaningful evidence exists on both sides;
 - unknown: support or independent review is insufficient;
 - refuted: strong counterevidence exceeds support by a material margin.
+
+Verdict and actionability are separate. Each evaluated claim also carries a
+`resolution_status`:
+
+- `resolved`: the claim is supported;
+- `poc_testable`: a contested or unknown claim can be settled by the bounded
+  PoC;
+- `research_gap`: the current evidence and PoC design cannot yet settle it;
+- `fatal`: the core claim is refuted.
+
+Evidence agreement remains visible as an audit diagnostic, but a
+`poc_testable` objection does not reduce the opportunity's evidence-strength
+score. It becomes planned validation work. Research gaps still reduce
+readiness, and fatal objections still prevent a PoC candidate.
 
 A direction is PoC-ready only when it has at least one minimally supported and
 testable core hypothesis, no core claim is refuted, and every unresolved core
@@ -119,10 +147,19 @@ verdicts do: a critic can always ask another question, and that is not the same
 as no direction being viable. Any question left unanswered travels into the PoC
 candidate as an unresolved question, which is what a PoC is for.
 
+ActionPlan preserves the `addresses` identifier on every task. Every retained
+Critic question becomes a `question-N` open item, and all such items must have a
+task before a plan is accepted. A provider may omit a non-critical extra task,
+but it cannot silently drop an important challenge because of ordering or the
+task limit.
+
 C therefore owns identification of targeted evidence gaps and the viability
 gate. The Search Agent converts those gaps and suggested searches into final,
-history-aware queries. D owns loop execution, iteration limits, persistence,
-events, and conversion of a PoC candidate into an ActionPlan.
+history-aware queries. On the first iteration, deterministic selection reserves
+one of the four query slots for failures, limitations, negative results, or
+contradictory evidence; this does not depend on the model remembering to
+produce an adversarial query. D owns loop execution, iteration limits,
+persistence, events, and conversion of a PoC candidate into an ActionPlan.
 
 ## Integration boundaries
 

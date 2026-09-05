@@ -24,6 +24,7 @@ from app.repositories import (
     SourceDocumentRepository,
     TechnologyOpportunityRepository,
 )
+from app.repositories import agent_event as agent_event_module
 from app.schemas import (
     ActionPlanCreate,
     ActionTask,
@@ -217,6 +218,7 @@ def test_action_plan_is_replaced_per_mission(session: Session) -> None:
                     id="task-1",
                     title="Baseline",
                     description="Establish a baseline GUI agent.",
+                    addresses="claim-1",
                     priority="high",
                     estimated_hours=4,
                     status="todo",
@@ -252,6 +254,37 @@ def test_agent_events_are_listed_in_creation_order(session: Session) -> None:
         "started",
         "completed",
     ]
+
+
+def test_agent_events_keep_creation_order_with_the_same_clock_tick(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixed_time = datetime(2026, 9, 5, tzinfo=UTC)
+    monkeypatch.setattr(agent_event_module, "utc_now", lambda: fixed_time)
+    mission = create_mission(session)
+    repository = AgentEventRepository(session)
+
+    saved = [
+        repository.save(
+            AgentEventCreate(
+                mission_id=mission.id,
+                agent_name="orchestrator",
+                event_type=event_type,
+                message=f"Mission {event_type}.",
+            )
+        )
+        for event_type in ("started", "searched", "completed")
+    ]
+
+    assert [event.event_type for event in repository.list_for_mission(mission.id)] == [
+        "started",
+        "searched",
+        "completed",
+    ]
+    assert [event.created_at for event in saved] == sorted(
+        event.created_at for event in saved
+    )
+    assert len({event.created_at for event in saved}) == 3
 
 
 def test_source_delete_cascades_to_evidence(session: Session) -> None:

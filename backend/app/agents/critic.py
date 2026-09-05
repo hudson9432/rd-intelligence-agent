@@ -123,16 +123,17 @@ class CriticAgent:
         )[: self.max_candidate_questions]
 
         accepted: list[EvaluatedCritiqueQuestion] = []
+        research_gaps: list[EvaluatedCritiqueQuestion] = []
         rejected: list[EvaluatedCritiqueQuestion] = []
-        accepted_texts_by_direction: dict[str, list[str]] = {
+        retained_texts_by_direction: dict[str, list[str]] = {
             direction_id: [] for direction_id in directions
         }
         seen_question_ids: set[str] = set()
 
         # Candidates are a replacement queue: a rejected question consumes no
-        # accepted slot, so the next candidate is considered automatically.
+        # retained slot, so the next candidate is considered automatically.
         for candidate in candidates:
-            if len(accepted) >= self.max_questions:
+            if len(accepted) + len(research_gaps) >= self.max_questions:
                 break
             if candidate.id in seen_question_ids:
                 continue
@@ -163,7 +164,7 @@ class CriticAgent:
             scores = QuestionScores(
                 diversity=question_diversity(
                     candidate.question,
-                    accepted_texts_by_direction[candidate.direction_id],
+                    retained_texts_by_direction[candidate.direction_id],
                 ),
                 rationality=semantic.rationality,
                 viewpoint_coverage=semantic.viewpoint_coverage,
@@ -176,21 +177,33 @@ class CriticAgent:
             if scores.viewpoint_coverage < self.minimum_score:
                 reasons.append("low_viewpoint_coverage")
 
+            is_research_gap = (
+                reasons == ["low_viewpoint_coverage"]
+                and not candidate.evidence_ids
+                and candidate.suggested_query is not None
+            )
+            if is_research_gap:
+                research_gaps.append(
+                    EvaluatedCritiqueQuestion(question=candidate, scores=scores)
+                )
+                retained_texts_by_direction[candidate.direction_id].append(
+                    candidate.question
+                )
+                continue
+
             evaluated = EvaluatedCritiqueQuestion(
-                question=candidate,
-                scores=scores,
-                rejection_reasons=reasons,
+                question=candidate, scores=scores, rejection_reasons=reasons
             )
             if reasons:
                 rejected.append(evaluated)
                 continue
 
             accepted.append(evaluated)
-            accepted_texts_by_direction[candidate.direction_id].append(
+            retained_texts_by_direction[candidate.direction_id].append(
                 candidate.question
             )
 
-        if not accepted:
+        if not accepted and not research_gaps:
             research_request = _fallback_research_request(
                 mission_goal=mission_goal,
                 directions=analysis.active_directions,
@@ -206,8 +219,9 @@ class CriticAgent:
                 ),
             )
 
+        retained = [*research_gaps, *accepted]
         suggested_queries = _unique_queries(
-            item.question.suggested_query for item in accepted
+            item.question.suggested_query for item in retained
         )[:3]
         research_request = None
         status = "ready"
@@ -216,20 +230,27 @@ class CriticAgent:
             research_request = TargetedResearchRequest(
                 queries=suggested_queries,
                 direction_ids=_unique_values(
-                    item.question.direction_id for item in accepted
+                    item.question.direction_id for item in retained
                 ),
                 claim_ids=_unique_values(
-                    item.question.challenged_claim_id for item in accepted
+                    item.question.challenged_claim_id for item in retained
                 ),
-                reason="Accepted critique questions expose evidence gaps.",
+                reason="Retained critique questions expose evidence gaps.",
             )
 
         return CriticOutcome(
             status=status,
             accepted_questions=accepted,
+            research_gap_questions=research_gaps,
             rejected_questions=rejected,
             suggested_queries=suggested_queries,
             research_request=research_request,
+            reason=(
+                "Reasonable questions without supporting evidence were retained "
+                "as targeted research gaps."
+                if research_gaps
+                else None
+            ),
         )
 
     @staticmethod

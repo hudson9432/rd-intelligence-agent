@@ -1,0 +1,131 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/bO2LEWcagNBMJRaIwHaPgroCe4U</id>
+  <title>arXiv Query: search_query=&amp;id_list=2401.00396,2408.08067,2410.14479&amp;start=0&amp;max_results=3</title>
+  <updated>2026-09-05T10:11:00Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=&amp;start=0&amp;max_results=3&amp;id_list=2401.00396,2408.08067,2410.14479" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>3</opensearch:itemsPerPage>
+  <opensearch:totalResults>3</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2410.14479v1</id>
+    <title>Backdoored Retrievers for Prompt Injection Attacks on Retrieval Augmented Generation of Large Language Models</title>
+    <updated>2024-10-18T14:02:34Z</updated>
+    <link href="https://arxiv.org/abs/2410.14479v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2410.14479v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Large Language Models (LLMs) have demonstrated remarkable capabilities in generating coherent text but remain limited by the static nature of their training data. Retrieval Augmented Generation (RAG) addresses this issue by combining LLMs with up-to-date information retrieval, but also expand the attack surface of the system. This paper investigates prompt injection attacks on RAG, focusing on malicious objectives beyond misinformation, such as inserting harmful links, promoting unauthorized services, and initiating denial-of-service behaviors. We build upon existing corpus poisoning techniques and propose a novel backdoor attack aimed at the fine-tuning process of the dense retriever component. Our experiments reveal that corpus poisoning can achieve significant attack success rates through the injection of a small number of compromised documents into the retriever corpus. In contrast, backdoor attacks demonstrate even higher success rates but necessitate a more complex setup, as the victim must fine-tune the retriever using the attacker poisoned dataset.</summary>
+    <category term="cs.CR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2024-10-18T14:02:34Z</published>
+    <arxiv:comment>12 pages, 5 figures</arxiv:comment>
+    <arxiv:primary_category term="cs.CR"/>
+    <author>
+      <name>Cody Clop</name>
+    </author>
+    <author>
+      <name>Yannick Teglia</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2401.00396v2</id>
+    <title>RAGTruth: A Hallucination Corpus for Developing Trustworthy Retrieval-Augmented Language Models</title>
+    <updated>2024-05-17T06:29:31Z</updated>
+    <link href="https://arxiv.org/abs/2401.00396v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2401.00396v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Retrieval-augmented generation (RAG) has become a main technique for alleviating hallucinations in large language models (LLMs). Despite the integration of RAG, LLMs may still present unsupported or contradictory claims to the retrieved contents. In order to develop effective hallucination prevention strategies under RAG, it is important to create benchmark datasets that can measure the extent of hallucination. This paper presents RAGTruth, a corpus tailored for analyzing word-level hallucinations in various domains and tasks within the standard RAG frameworks for LLM applications. RAGTruth comprises nearly 18,000 naturally generated responses from diverse LLMs using RAG. These responses have undergone meticulous manual annotations at both the individual cases and word levels, incorporating evaluations of hallucination intensity. We not only benchmark hallucination frequencies across different LLMs, but also critically assess the effectiveness of several existing hallucination detection methodologies. Furthermore, we show that using a high-quality dataset such as RAGTruth, it is possible to finetune a relatively small LLM and achieve a competitive level of performance in hallucination detection when compared to the existing prompt-based approaches using state-of-the-art large language models such as GPT-4.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-12-31T04:43:45Z</published>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Cheng Niu</name>
+    </author>
+    <author>
+      <name>Yuanhao Wu</name>
+    </author>
+    <author>
+      <name>Juno Zhu</name>
+    </author>
+    <author>
+      <name>Siliang Xu</name>
+    </author>
+    <author>
+      <name>Kashun Shum</name>
+    </author>
+    <author>
+      <name>Randy Zhong</name>
+    </author>
+    <author>
+      <name>Juntong Song</name>
+    </author>
+    <author>
+      <name>Tong Zhang</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2408.08067v2</id>
+    <title>RAGChecker: A Fine-grained Framework for Diagnosing Retrieval-Augmented Generation</title>
+    <updated>2024-08-17T00:30:04Z</updated>
+    <link href="https://arxiv.org/abs/2408.08067v2" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2408.08067v2" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Despite Retrieval-Augmented Generation (RAG) showing promising capability in leveraging external knowledge, a comprehensive evaluation of RAG systems is still challenging due to the modular nature of RAG, evaluation of long-form responses and reliability of measurements. In this paper, we propose a fine-grained evaluation framework, RAGChecker, that incorporates a suite of diagnostic metrics for both the retrieval and generation modules. Meta evaluation verifies that RAGChecker has significantly better correlations with human judgments than other evaluation metrics. Using RAGChecker, we evaluate 8 RAG systems and conduct an in-depth analysis of their performance, revealing insightful patterns and trade-offs in the design choices of RAG architectures. The metrics of RAGChecker can guide researchers and practitioners in developing more effective RAG systems. This work has been open sourced at https://github.com/amazon-science/RAGChecker.</summary>
+    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2024-08-15T10:20:54Z</published>
+    <arxiv:comment>Under Review. Github Repo: https://github.com/amazon-science/RAGChecker</arxiv:comment>
+    <arxiv:primary_category term="cs.CL"/>
+    <author>
+      <name>Dongyu Ru</name>
+    </author>
+    <author>
+      <name>Lin Qiu</name>
+    </author>
+    <author>
+      <name>Xiangkun Hu</name>
+    </author>
+    <author>
+      <name>Tianhang Zhang</name>
+    </author>
+    <author>
+      <name>Peng Shi</name>
+    </author>
+    <author>
+      <name>Shuaichen Chang</name>
+    </author>
+    <author>
+      <name>Cheng Jiayang</name>
+    </author>
+    <author>
+      <name>Cunxiang Wang</name>
+    </author>
+    <author>
+      <name>Shichao Sun</name>
+    </author>
+    <author>
+      <name>Huanyu Li</name>
+    </author>
+    <author>
+      <name>Zizhao Zhang</name>
+    </author>
+    <author>
+      <name>Binjie Wang</name>
+    </author>
+    <author>
+      <name>Jiarong Jiang</name>
+    </author>
+    <author>
+      <name>Tong He</name>
+    </author>
+    <author>
+      <name>Zhiguo Wang</name>
+    </author>
+    <author>
+      <name>Pengfei Liu</name>
+    </author>
+    <author>
+      <name>Yue Zhang</name>
+    </author>
+    <author>
+      <name>Zheng Zhang</name>
+    </author>
+  </entry>
+</feed>

@@ -23,5 +23,5 @@ export const completedWorkspace: MissionWorkspaceData = {
   action_plan: { id: "plan-1", mission_id: "mission-1", title: "Synthetic PoC", summary: "Test plan",
     estimated_effort: "2 hours", success_metrics_json: ["Test success criterion"], created_at: "2026-09-05T00:00:00Z",
     tasks_json: [{ id: "task-1", title: "Test task", description: "Check the hypothesis", priority: "high",
-      estimated_hours: 2, status: "pending", dependencies: [] }] },
+      addresses: "claim-1", estimated_hours: 2, status: "pending", dependencies: [] }] },
 };

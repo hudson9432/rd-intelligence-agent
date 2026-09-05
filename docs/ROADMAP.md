@@ -89,6 +89,12 @@ A mission now runs end to end offline: goal to sources to persisted evidence to
 a Phase C handoff to a decision to a stored action plan. Only the Decision
 stage is still provisional.
 
+The backend prerequisite for Phase 13 is available through
+`GET /missions/{id}/result`. It aggregates provenance, evidence eligibility and
+audit findings, Phase C claim verdicts, every scored opportunity, the decision,
+and the stored action plan. Phase 13 remains in progress until the frontend
+renders that contract and polls workflow events.
+
 Real-provider runs can be queued through `POST /missions/{id}/run/async` and
 observed through mission status plus persisted events. This in-process runner
 prevents a chain of model calls from holding open the initiating request, but a
@@ -125,8 +131,8 @@ real arXiv and GitHub responses, and the committed set now reaches
 `backend/tests/test_demo_fixtures.py`. Refresh fixtures with that script; do
 not hand-write abstracts for real papers.
 
-What phase 14 still needs is a query-aware mock: replay ignores the query, so a
-targeted re-search round returns the same sources it already has and the
-bounded loop cannot improve its evidence offline. Until per-query fixture sets
-exist, the Critic-driven re-search loop — the product's stated differentiator —
-is not observable in mock mode.
+Phase 14 now has a bounded query-aware RAG mock profile. General queries replay
+the baseline sources, while citation, hallucination, prompt-injection, Ragas,
+and failure-benchmark follow-ups replay a distinct raw arXiv capture. Tests
+verify that a targeted second round adds new source URLs. Broader topic-specific
+fixture profiles and a polished scripted demo remain optional extensions.

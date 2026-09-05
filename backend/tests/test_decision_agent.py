@@ -107,6 +107,7 @@ def candidate(direction_id: str, card: EvidenceCard) -> PocCandidate:
                 support_strength=0.8,
                 poc_testability=0.9,
                 verdict="supported",
+                resolution_status="resolved",
                 rationale="Measurable within a bounded PoC.",
             )
         ],

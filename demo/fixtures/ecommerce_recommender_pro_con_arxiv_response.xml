@@ -1,0 +1,145 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
+  <id>https://arxiv.org/api/1XM9FHpkqlBHOg44HKoAS917VDw</id>
+  <title>arXiv Query: search_query=&amp;id_list=2108.05891,2507.15113,2308.01118,1911.07698&amp;start=0&amp;max_results=4</title>
+  <updated>2026-09-05T08:21:29Z</updated>
+  <link href="https://arxiv.org/api/query?search_query=&amp;start=0&amp;max_results=4&amp;id_list=2108.05891,2507.15113,2308.01118,1911.07698" type="application/atom+xml"/>
+  <opensearch:itemsPerPage>4</opensearch:itemsPerPage>
+  <opensearch:totalResults>4</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <entry>
+    <id>http://arxiv.org/abs/2108.05891v1</id>
+    <title>Page-level Optimization of e-Commerce Item Recommendations</title>
+    <updated>2021-08-12T17:59:22Z</updated>
+    <link href="https://arxiv.org/abs/2108.05891v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2108.05891v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The item details page (IDP) is a web page on an e-commerce website that provides information on a specific product or item listing. Just below the details of the item on this page, the buyer can usually find recommendations for other relevant items. These are typically in the form of a series of modules or carousels, with each module containing a set of recommended items. The selection and ordering of these item recommendation modules are intended to increase discover-ability of relevant items and encourage greater user engagement, while simultaneously showcasing diversity of inventory and satisfying other business objectives. Item recommendation modules on the IDP are often curated and statically configured for all customers, ignoring opportunities for personalization. In this paper, we present a scalable end-to-end production system to optimize the personalized selection and ordering of item recommendation modules on the IDP in real-time by utilizing deep neural networks. Through extensive offline experimentation and online A/B testing, we show that our proposed system achieves significantly higher click-through and conversion rates compared to other existing methods. In our online A/B test, our framework improved click-through rate by 2.48% and purchase-through rate by 7.34% over a static configuration.</summary>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2021-08-12T17:59:22Z</published>
+    <arxiv:comment>Accepted by RecSys 2021</arxiv:comment>
+    <arxiv:primary_category term="cs.IR"/>
+    <author>
+      <name>Chieh Lo</name>
+    </author>
+    <author>
+      <name>Hongliang Yu</name>
+    </author>
+    <author>
+      <name>Xin Yin</name>
+    </author>
+    <author>
+      <name>Krutika Shetty</name>
+    </author>
+    <author>
+      <name>Changchen He</name>
+    </author>
+    <author>
+      <name>Kathy Hu</name>
+    </author>
+    <author>
+      <name>Justin Platz</name>
+    </author>
+    <author>
+      <name>Adam Ilardi</name>
+    </author>
+    <author>
+      <name>Sriganesh Madhvanath</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2507.15113v1</id>
+    <title>Click A, Buy B: Rethinking Conversion Attribution in E- Commerce Recommendations</title>
+    <updated>2025-07-20T20:25:20Z</updated>
+    <link href="https://arxiv.org/abs/2507.15113v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2507.15113v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>User journeys in e-commerce routinely violate the one-to-one assumption that a clicked item on an advertising platform is the same item later purchased on the merchant's website/app. For a significant number of converting sessions on our platform, users click product A but buy product B -- the Click A, Buy B (CABB) phenomenon. Training recommendation models on raw click-conversion pairs therefore rewards items that merely correlate with purchases, leading to biased learning and sub-optimal conversion rates. We reframe conversion prediction as a multi-task problem with separate heads for Click A Buy A (CABA) and Click A Buy B (CABB). To isolate informative CABB conversions from unrelated CABB conversions, we introduce a taxonomy-aware collaborative filtering weighting scheme where each product is first mapped to a leaf node in a product taxonomy, and a category-to-category similarity matrix is learned from large-scale co-engagement logs. This weighting amplifies pairs that reflect genuine substitutable or complementary relations while down-weighting coincidental cross-category purchases. Offline evaluation on e-commerce sessions reduces normalized entropy by 13.9% versus a last-click attribution baseline. An online A/B test on live traffic shows +0.25% gains in the primary business metric.</summary>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2025-07-20T20:25:20Z</published>
+    <arxiv:primary_category term="cs.IR"/>
+    <author>
+      <name>Xiangyu Zeng</name>
+    </author>
+    <author>
+      <name>Amit Jaspal</name>
+    </author>
+    <author>
+      <name>Bin Liu</name>
+    </author>
+    <author>
+      <name>Goutham Panneeru</name>
+    </author>
+    <author>
+      <name>Kevin Huang</name>
+    </author>
+    <author>
+      <name>Nicolas Bievre</name>
+    </author>
+    <author>
+      <name>Mohit Jaggi</name>
+    </author>
+    <author>
+      <name>Prathap Maniraju</name>
+    </author>
+    <author>
+      <name>Ankur Jain</name>
+    </author>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/1911.07698v3</id>
+    <title>A Troubling Analysis of Reproducibility and Progress in Recommender Systems Research</title>
+    <updated>2021-01-07T14:09:01Z</updated>
+    <link href="https://arxiv.org/abs/1911.07698v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1911.07698v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The design of algorithms that generate personalized ranked item lists is a central topic of research in the field of recommender systems. In the past few years, in particular, approaches based on deep learning (neural) techniques have become dominant in the literature. For all of them, substantial progress over the state-of-the-art is claimed. However, indications exist of certain problems in today's research practice, e.g., with respect to the choice and optimization of the baselines used for comparison, raising questions about the published claims. In order to obtain a better understanding of the actual progress, we have tried to reproduce recent results in the area of neural recommendation approaches based on collaborative filtering. The worrying outcome of the analysis of these recent works-all were published at prestigious scientific conferences between 2015 and 2018-is that 11 out of the 12 reproducible neural approaches can be outperformed by conceptually simple methods, e.g., based on the nearest-neighbor heuristics. None of the computationally complex neural methods was actually consistently better than already existing learning-based techniques, e.g., using matrix factorization or linear models. In our analysis, we discuss common issues in today's research practice, which, despite the many papers that are published on the topic, have apparently led the field to a certain level of stagnation.</summary>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.NE" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2019-11-18T15:27:09Z</published>
+    <arxiv:comment>Source code and full results available at: https://github.com/MaurizioFD/RecSys2019_DeepLearning_Evaluation</arxiv:comment>
+    <arxiv:primary_category term="cs.IR"/>
+    <arxiv:journal_ref>ACM Transactions on Information Systems 39, 2, Article 20 (January 2021), 49 pages</arxiv:journal_ref>
+    <author>
+      <name>Maurizio Ferrari Dacrema</name>
+    </author>
+    <author>
+      <name>Simone Boglio</name>
+    </author>
+    <author>
+      <name>Paolo Cremonesi</name>
+    </author>
+    <author>
+      <name>Dietmar Jannach</name>
+    </author>
+    <arxiv:doi>10.1145/3434185</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1145/3434185" title="doi"/>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2308.01118v3</id>
+    <title>A Survey on Popularity Bias in Recommender Systems</title>
+    <updated>2024-07-02T12:39:41Z</updated>
+    <link href="https://arxiv.org/abs/2308.01118v3" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/2308.01118v3" rel="related" type="application/pdf" title="pdf"/>
+    <summary>Recommender systems help people find relevant content in a personalized way. One main promise of such systems is that they are able to increase the visibility of items in the long tail, i.e., the lesser-known items in a catalogue. Existing research, however, suggests that in many situations todays recommendation algorithms instead exhibit a popularity bias, meaning that they often focus on rather popular items in their recommendations. Such a bias may not only lead to the limited value of the recommendations for consumers and providers in the short run, but it may also cause undesired reinforcement effects over time. In this paper, we discuss the potential reasons for popularity bias and review existing approaches to detect, quantify and mitigate popularity bias in recommender systems. Our survey, therefore, includes both an overview of the computational metrics used in the literature as well as a review of the main technical approaches to reduce the bias. Furthermore, we critically discuss todays literature, where we observe that the research is almost entirely based on computational experiments and on certain assumptions regarding the practical effects of including long-tail items in the recommendations.</summary>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <published>2023-08-02T12:58:11Z</published>
+    <arxiv:primary_category term="cs.IR"/>
+    <arxiv:journal_ref>User Modeling and User-Adapted Interaction (2024)</arxiv:journal_ref>
+    <author>
+      <name>Anastasiia Klimashevskaia</name>
+    </author>
+    <author>
+      <name>Dietmar Jannach</name>
+    </author>
+    <author>
+      <name>Mehdi Elahi</name>
+    </author>
+    <author>
+      <name>Christoph Trattner</name>
+    </author>
+    <arxiv:doi>10.1007/s11257-024-09406-0</arxiv:doi>
+    <link rel="related" href="https://doi.org/10.1007/s11257-024-09406-0" title="doi"/>
+  </entry>
+</feed>

@@ -27,6 +27,7 @@ export interface ClaimAssessment {
   supporting_evidence_ids: string[]; opposing_evidence_ids: string[];
   support_strength: number; counterevidence_strength: number | null;
   poc_testability: number | null; verdict: "supported" | "contested" | "unknown" | "refuted";
+  resolution_status: "resolved" | "poc_testable" | "research_gap" | "fatal";
   rationale: string;
 }
 export interface PocCandidate {
@@ -44,7 +45,7 @@ export interface RunSummary {
 }
 export interface ActionTask {
   id: string; title: string; description: string; priority: string;
-  estimated_hours: number; dependencies: string[]; status: string;
+  addresses: string; estimated_hours: number; dependencies: string[]; status: string;
 }
 export interface ActionPlan {
   id: string; mission_id: string; title: string; summary: string; tasks_json: ActionTask[];

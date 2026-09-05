@@ -172,7 +172,7 @@ export function MissionResults({ workspace }: { workspace: MissionWorkspaceData 
           <h3 className={styles.subheading}>Success criteria</h3><TextList values={plan.success_metrics_json} />
           <ol className={styles.tasks}>{plan.tasks_json.map((task) => <li key={task.id} id={`task-${task.id}`}>
             <h3>{task.title}</h3><p>{task.description}</p><div className={styles.tags}>
-              <span>{task.priority} priority</span><span>{task.estimated_hours} hours</span><span>{task.status}</span>
+              <span>{task.priority} priority</span><span>{task.estimated_hours} hours</span><span>{task.status}</span><span>Addresses: {task.addresses}</span>
             </div><p>Dependencies: {task.dependencies.length ? task.dependencies.map((id) => <a className={styles.dependency} key={id} href={`#task-${id}`}>{plan.tasks_json.find((other) => other.id === id)?.title ?? id}</a>) : "None"}</p>
           </li>)}</ol>
         </>}

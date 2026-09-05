@@ -102,11 +102,19 @@ class TargetedResearchRequest(BaseModel):
 
 
 class EvidenceEligibility(BaseModel):
-    """Why one evidence card did or did not enter Phase C analysis."""
+    """How one evidence card may be used by Phase C.
+
+    ``eligible`` is deliberately the stricter support permission. A card may
+    fail that gate while remaining ``challenge_eligible`` when it is reliable
+    enough to expose a limitation or conflicting result. This asymmetry keeps
+    weak evidence from increasing a direction's score without hiding useful
+    counterevidence from the Critic.
+    """
 
     evidence_id: UUID
     quality_score: UnitScore
     eligible: bool
+    challenge_eligible: bool
     exclusion_reasons: list[EvidenceExclusionReason] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -115,6 +123,8 @@ class EvidenceEligibility(BaseModel):
             raise ValueError("Eligible evidence cannot have exclusion reasons")
         if not self.eligible and not self.exclusion_reasons:
             raise ValueError("Excluded evidence needs at least one reason")
+        if self.eligible and not self.challenge_eligible:
+            raise ValueError("Support-eligible evidence must enter the challenge pool")
         return self
 
 
@@ -124,12 +134,14 @@ class EvidenceSufficiencyReport(BaseModel):
     sufficient: bool
     total_evidence_count: int = Field(ge=0)
     effective_evidence_count: int = Field(ge=0)
+    challenge_evidence_count: int = Field(ge=0)
     independent_source_count: int = Field(ge=0)
     result_bearing_count: int = Field(ge=0)
     limitation_bearing_count: int = Field(ge=0)
     minimum_effective_evidence: int = Field(ge=1)
     minimum_independent_sources: int = Field(ge=1)
     minimum_relevance: UnitScore
+    minimum_challenge_relevance: UnitScore
     minimum_extraction_confidence: UnitScore
     assessments: list[EvidenceEligibility] = Field(default_factory=list)
     missing_requirements: list[str] = Field(default_factory=list)
@@ -140,6 +152,9 @@ class CriticOutcome(BaseModel):
 
     status: Literal["ready", "research_required"]
     accepted_questions: list[EvaluatedCritiqueQuestion] = Field(default_factory=list)
+    research_gap_questions: list[EvaluatedCritiqueQuestion] = Field(
+        default_factory=list
+    )
     rejected_questions: list[EvaluatedCritiqueQuestion] = Field(default_factory=list)
     suggested_queries: list[str] = Field(default_factory=list)
     research_request: TargetedResearchRequest | None = None
@@ -157,6 +172,7 @@ class CriticOutcome(BaseModel):
 
 
 ClaimVerdict = Literal["supported", "contested", "unknown", "refuted"]
+ClaimResolutionStatus = Literal["resolved", "poc_testable", "research_gap", "fatal"]
 
 
 class ClaimReview(BaseModel):
@@ -182,6 +198,7 @@ class EvaluatedClaim(BaseModel):
     counterevidence_strength: UnitScore | None = None
     poc_testability: UnitScore | None = None
     verdict: ClaimVerdict
+    resolution_status: ClaimResolutionStatus
     rationale: str = Field(min_length=1)
 
 

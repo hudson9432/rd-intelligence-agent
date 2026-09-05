@@ -57,8 +57,11 @@ class _RequestPacer:
         if interval_seconds <= 0:
             return
         with self.lock:
-            delay = self.next_request_at - time.monotonic()
-            if delay > 0:
+            # Some Windows timers can wake a short sleep before its requested
+            # deadline. Recheck the monotonic clock instead of assuming one
+            # sleep was sufficient, otherwise requests can slip under the
+            # provider's minimum interval.
+            while (delay := self.next_request_at - time.monotonic()) > 0:
                 time.sleep(delay)
             self.next_request_at = time.monotonic() + interval_seconds
 
