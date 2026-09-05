@@ -12,8 +12,13 @@ from app.prompts.search import build_search_messages
 from app.schemas.search_agent import SearchAgentInput, SearchAgentOutput
 from app.schemas.source_result import SourceResult
 
-MAX_GENERATED_QUERY_CANDIDATES = 12
 DEFAULT_MAX_QUERIES = 4
+
+# A ceiling for runaway output, deliberately far above the working limit:
+# _select_query_portfolio keeps only DEFAULT_MAX_QUERIES of these, so failing a
+# batch for holding a few more would discard the round to drop candidates the
+# next step was going to drop anyway.
+QUERY_PLAN_CEILING = 48
 ADVERSARIAL_QUERY_SUFFIX = "failure limitations negative results contradictory evidence"
 QueryCandidate = Annotated[str, Field(min_length=1, max_length=500)]
 
@@ -21,11 +26,9 @@ QueryCandidate = Annotated[str, Field(min_length=1, max_length=500)]
 class _QueryPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    queries: list[QueryCandidate] = Field(
-        min_length=1, max_length=MAX_GENERATED_QUERY_CANDIDATES
-    )
+    queries: list[QueryCandidate] = Field(min_length=1, max_length=QUERY_PLAN_CEILING)
     repository_queries: list[QueryCandidate] = Field(
-        default_factory=list, max_length=MAX_GENERATED_QUERY_CANDIDATES
+        default_factory=list, max_length=QUERY_PLAN_CEILING
     )
     """Short keyword queries for code hosting search.
 
