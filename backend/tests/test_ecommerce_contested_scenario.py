@@ -178,7 +178,9 @@ def test_contested_ecommerce_claim_maps_every_question_to_an_action_task() -> No
     assert contested[0].resolution_status == "poc_testable"
 
     candidate = handoff.poc_candidates[0]
-    assert derive_evidence_strength(candidate) == 5
+    # Strong, but short of the ceiling a settled claim reaches: the objection
+    # is answerable by the PoC rather than already answered by the evidence.
+    assert derive_evidence_strength(candidate) == 4
     plan = ActionAgent(MockLLMClient()).plan(
         mission_id=MISSION_ID,
         mission_goal=scenario["mission_goal"],

@@ -41,10 +41,21 @@ _VERDICT_AGREEMENT: dict[str, float] = {
 #: Whether an objection prevents the team from acting. A contested claim that
 #: can be settled by the PoC is work to schedule, not evidence that the
 #: opportunity is intrinsically worse.
+#:
+#: ``poc_testable`` sits below ``resolved`` because this feeds
+#: ``evidence_strength``, the confidence term of the score. A direction we can
+#: find out about is not a direction we already know about, and a confidence
+#: term that cannot tell those apart stops carrying the signal it exists for.
+#:
+#: The values are spread rather than packed because ``to_scale`` rounds onto
+#: five buckets: neighbours closer than about 0.25 collapse into one bucket and
+#: the distinction stops existing in the score. Three levels cannot be kept
+#: apart at every coverage, but this spread keeps both distinctions visible
+#: wherever coverage is high enough for the score to carry weight.
 _RESOLUTION_READINESS: dict[str, float] = {
     "resolved": 1.0,
-    "poc_testable": 1.0,
-    "research_gap": 0.7,
+    "poc_testable": 0.8,
+    "research_gap": 0.5,
     "fatal": 0.0,
 }
 
