@@ -1,5 +1,17 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import type { MissionWorkspaceData } from "@/types/workspace";
 import styles from "./workspace.module.css";
+
+// Following the log is a convenience, never a requirement. Where the platform
+// does not provide programmatic scrolling the page simply does not follow,
+// rather than taking the whole results view down with it.
+function follow(target: Element | null | undefined, block: ScrollLogicalPosition) {
+  if (typeof target?.scrollIntoView !== "function") return;
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  target.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block });
+}
 
 function sourceUrl(value: string): string | undefined {
   try {
@@ -20,6 +32,35 @@ function TextList({ values, empty = "Not recorded" }: { values: string[]; empty?
 
 export function MissionResults({ workspace }: { workspace: MissionWorkspaceData }) {
   const { mission, sources, evidence, opportunities, summary, action_plan: plan, events } = workspace;
+  const running = mission.status === "running";
+  const timelineRef = useRef<HTMLOListElement>(null);
+  const followRef = useRef(true);
+
+  // Following the log must yield to the reader. Once they scroll up to look at
+  // something, arriving events stop dragging the page back down; scrolling to
+  // the bottom again resumes the follow.
+  useEffect(() => {
+    function onScroll() {
+      const doc = document.documentElement;
+      followRef.current = window.innerHeight + window.scrollY >= doc.scrollHeight - 160;
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // A run starting only re-arms the follow; moving the page before the first
+  // event exists would jump to an empty log.
+  useEffect(() => {
+    if (running) followRef.current = true;
+  }, [running]);
+
+  useEffect(() => {
+    // The list also holds the in-progress indicator, so an empty run would
+    // otherwise scroll to that instead of waiting for real activity.
+    if (!running || !followRef.current || !events.length) return;
+    follow(timelineRef.current?.lastElementChild, "center");
+  }, [events.length, running]);
+
   const sourceById = new Map(sources.map((source) => [source.id, source]));
   const currentEvents = workspace.run_started_at
     ? events.filter((event) => Date.parse(event.created_at) >= Date.parse(workspace.run_started_at!)) : [];
@@ -141,11 +182,12 @@ export function MissionResults({ workspace }: { workspace: MissionWorkspaceData 
         <p className={styles.eyebrow}>Agent activity</p><h2 id="activity-title">Execution history</h2>
         {summary && <details><summary>Search queries ({summary.query_history.length})</summary><TextList values={summary.query_history} /></details>}
         {!events.length && <p className={styles.empty}>No activity recorded yet.</p>}
-        <ol className={styles.timeline}>{events.map((event) => <li key={event.id}>
+        <ol className={styles.timeline} ref={timelineRef} aria-live={running ? "polite" : "off"}>{events.map((event, index) => <li key={event.id} className={running && index === events.length - 1 ? styles.newest : undefined}>
           <div><span className={styles.badge}>{event.agent_name}</span><time dateTime={event.created_at}>{new Date(event.created_at).toLocaleString("en-GB", { timeZone: "UTC" })} UTC</time></div>
           <p>{event.message}</p><span className={styles.muted}>{event.event_type.replaceAll("_", " ")}</span>
           {Array.isArray(event.metadata.queries) && <TextList values={event.metadata.queries.filter((value): value is string => typeof value === "string")} />}
-        </li>)}</ol>
+        </li>)}
+        {running && <li className={styles.working} aria-hidden="true"><span /><span /><span /></li>}</ol>
       </section>
     </>
   );
