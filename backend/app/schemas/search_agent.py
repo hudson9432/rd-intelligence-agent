@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.source_result import SourceResult
+from app.schemas.source_result import SourceError, SourceResult
 
 SearchQuery = Annotated[str, Field(min_length=1, max_length=500)]
 
@@ -29,4 +29,12 @@ class SearchAgentOutput(BaseModel):
 
     generated_queries: list[SearchQuery] = Field(default_factory=list, max_length=4)
     retrieved_sources: list[SourceResult] = Field(default_factory=list)
+    source_errors: list[SourceError] = Field(default_factory=list)
+    """Sources that could not be reached for this round.
+
+    Retrieval returning nothing is ambiguous on its own: the queries may have
+    matched nothing, or the provider may have been unreachable. Carrying the
+    failures out keeps those two apart for whoever reads the run.
+    """
+
     notes: str = Field(min_length=1)
