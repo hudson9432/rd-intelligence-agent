@@ -180,6 +180,39 @@ def test_two_cards_from_one_source_still_return_to_research() -> None:
     assert report.missing_requirements == ["independent_sources"]
 
 
+def test_ineligible_evidence_cannot_support_a_direction() -> None:
+    evidence = supported_evidence()
+    excluded = evidence_card(
+        "Unrelated result",
+        "Unrelated evidence snippet.",
+        "Unrelated limitation.",
+    ).model_copy(update={"relevance_score": 0.1})
+
+    handoff = stage().analyze(
+        mission_goal=GOAL,
+        evidence=[*evidence, excluded],
+        research_exhausted=False,
+    )
+
+    assert handoff.status == "ready_for_poc"
+    assert handoff.evidence_sufficiency is not None
+    excluded_assessment = next(
+        item
+        for item in handoff.evidence_sufficiency.assessments
+        if item.evidence_id == excluded.id
+    )
+    assert excluded_assessment.exclusion_reasons == ["low_relevance"]
+    cited_ids = {
+        evidence_id
+        for claim in handoff.claim_assessments
+        for evidence_id in [
+            *claim.supporting_evidence_ids,
+            *claim.opposing_evidence_ids,
+        ]
+    }
+    assert excluded.id not in cited_ids
+
+
 def test_evidence_without_limitations_yields_targeted_queries() -> None:
     """An accepted question carrying a suggested search still needs research."""
 

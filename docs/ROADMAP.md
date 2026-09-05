@@ -89,6 +89,12 @@ A mission now runs end to end offline: goal to sources to persisted evidence to
 a Phase C handoff to a decision to a stored action plan. Only the Decision
 stage is still provisional.
 
+The backend prerequisite for Phase 13 is available through
+`GET /missions/{id}/result`. It aggregates provenance, evidence eligibility and
+audit findings, Phase C claim verdicts, every scored opportunity, the decision,
+and the stored action plan. Phase 13 remains in progress until the frontend
+renders that contract and polls workflow events.
+
 Real-provider runs can be queued through `POST /missions/{id}/run/async` and
 observed through mission status plus persisted events. This in-process runner
 prevents a chain of model calls from holding open the initiating request, but a

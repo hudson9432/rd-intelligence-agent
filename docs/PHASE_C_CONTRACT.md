@@ -25,6 +25,8 @@ whether the pool contains at least two effective cards from at least two
 independent source IDs. An effective card must have relevance of at least 0.2
 and extraction confidence of at least 0.6. Raw result count therefore cannot
 be used to fill the pool with weak cards.
+Only cards that pass both thresholds enter Analyst, Critic, claim review, and
+the viability gate; an excluded card cannot later support or oppose a claim.
 
 The handoff carries an `EvidenceSufficiencyReport` containing every evidence
 ID, its relevance-confidence quality score, its eligibility or exclusion

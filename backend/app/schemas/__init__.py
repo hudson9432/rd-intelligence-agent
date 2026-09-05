@@ -5,6 +5,12 @@ from app.schemas.agent_event import AgentEvent, AgentEventCreate
 from app.schemas.coverage_report import CoverageReport, CoverageReportCreate
 from app.schemas.evidence_card import EvidenceCard, EvidenceCardCreate
 from app.schemas.llm import LLMCompletion, LLMMessage
+from app.schemas.mission_result import (
+    AuditFinding,
+    ClaimVerdictCounts,
+    MissionAuditReport,
+    MissionResult,
+)
 from app.schemas.research_mission import (
     MissionStatus,
     ResearchMission,
@@ -39,6 +45,10 @@ __all__ = [
     "EvidenceCardCreate",
     "LLMCompletion",
     "LLMMessage",
+    "AuditFinding",
+    "ClaimVerdictCounts",
+    "MissionAuditReport",
+    "MissionResult",
     "MissionStatus",
     "ResearchMission",
     "ResearchMissionCreate",

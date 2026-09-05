@@ -100,18 +100,29 @@ class PhaseCAnalysisStage:
                 reason=reason,
             )
 
+        eligible_ids = {
+            assessment.evidence_id
+            for assessment in sufficiency.assessments
+            if assessment.eligible
+        }
+        eligible_evidence = [card for card in evidence if card.id in eligible_ids]
+
         try:
             analysis = self._analyst.analyze(
-                mission_goal=mission_goal, evidence=evidence
+                mission_goal=mission_goal, evidence=eligible_evidence
             )
             critique = self._critic.critique(
-                mission_goal=mission_goal, analysis=analysis, evidence=evidence
+                mission_goal=mission_goal,
+                analysis=analysis,
+                evidence=eligible_evidence,
             )
             # Claim review is only meaningful once directions exist; asking for
             # it on a research-required analysis would spend a call on nothing.
             claim_reviews: Sequence[ClaimReview] = (
                 self._adapter.review_claims(
-                    analysis=analysis, critique=critique, evidence=evidence
+                    analysis=analysis,
+                    critique=critique,
+                    evidence=eligible_evidence,
                 )
                 if analysis.status == "ready"
                 else []
@@ -120,7 +131,7 @@ class PhaseCAnalysisStage:
                 mission_goal=mission_goal,
                 analysis=analysis,
                 critique=critique,
-                evidence=evidence,
+                evidence=eligible_evidence,
                 claim_reviews=claim_reviews,
                 research_exhausted=research_exhausted,
             )

@@ -42,6 +42,10 @@ flowchart LR
 - Numeric opportunity scores and coverage thresholds are calculated in code.
 - Providers are selected from environment configuration and have deterministic
   mocks for tests/demo.
+- `GET /missions/{id}/result` is the read-side aggregate for sources, evidence,
+  the Phase C audit, all candidate scores, the decision, and the action plan.
+  The workflow stores its typed handoff in event metadata so an asynchronous
+  run remains auditable after the in-memory graph has finished.
 
 ## Failure model
 
