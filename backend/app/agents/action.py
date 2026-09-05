@@ -32,6 +32,7 @@ MAX_GENERATED_TASKS = 12
 # Separate from MAX_GENERATED_TASKS, which bounds what a caller may ask for.
 # This one only rejects runaway output: the planner slices to its own limit.
 TASK_BATCH_CEILING = 48
+METRIC_BATCH_CEILING = 24
 MAX_SUCCESS_METRICS = 6
 TASK_STATUS_TODO = "todo"
 
@@ -65,7 +66,7 @@ class _TaskPlan(BaseModel):
 
     summary: str = Field(min_length=1)
     tasks: list[_PlannedTask] = Field(min_length=1, max_length=TASK_BATCH_CEILING)
-    success_metrics: list[str] = Field(min_length=1, max_length=MAX_SUCCESS_METRICS)
+    success_metrics: list[str] = Field(min_length=1, max_length=METRIC_BATCH_CEILING)
 
 
 class ActionAgent:
