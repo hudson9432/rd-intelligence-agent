@@ -54,6 +54,24 @@ class Settings(BaseSettings):
     mock_external_apis: bool = True
     demo_mode: bool = False
 
+    workflow_max_iterations: int = Field(default=2, ge=0, le=8)
+    """How many times the Critic may send the run back for more evidence.
+
+    Each round costs a search, an extraction pass over everything it returns,
+    and a full analysis, so this is the single largest lever on how long a run
+    takes. Lower it for a live demonstration someone is watching; leave it for
+    an analysis someone will act on.
+    """
+
+    search_max_results_per_source: int = Field(default=8, ge=1, le=50)
+    """How many results to keep from each source, for each query.
+
+    Extraction runs one model call per retrieved source and is over half the
+    wall-clock of a full run, so this multiplies out faster than it looks:
+    four queries across two sources at eight results is up to 64 sources in a
+    single round.
+    """
+
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
         env_file_encoding="utf-8",

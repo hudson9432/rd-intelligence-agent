@@ -67,7 +67,9 @@ flowchart LR
 
 需求：Python 3.11+（開發於 3.13.7）、Node.js 20.9+（開發於 22.14.0）、npm 10+。
 
-**離線模式不需要任何 API 金鑰**，可完整重現整條流程。
+`backend/.env.example` 預設為**線上模式**（真實模型 + 真實 arXiv／GitHub 檢索），需要填入 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL` 三項。
+
+**不想準備金鑰**的話，把該檔案底部的 `MOCK_LLM` 與 `MOCK_EXTERNAL_APIS` 都改回 `true` 即可完全離線執行，整條流程一樣走得完。
 
 ```bash
 # 1. 取得原始碼
@@ -78,7 +80,7 @@ cd rd-intelligence-agent
 python3 -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -r backend/requirements.txt
-cp backend/.env.example backend/.env # 預設 MOCK_LLM=true，離線可跑
+cp backend/.env.example backend/.env # 線上模式：填入三個 LLM_ 變數，或改回 MOCK_*=true
 
 cd backend
 python -m pytest                     # 302 passed
@@ -96,7 +98,16 @@ npm run dev                          # http://localhost:3000
 
 開啟 <http://localhost:3000>，建立任務後按 **Start research** 即可執行。
 
-### 使用真實模型
+### 切換離線模式
+
+`backend/.env` 底部：
+
+```bash
+MOCK_LLM=true            # 使用確定性的 mock 模型
+MOCK_EXTERNAL_APIS=true  # 重播已擷取的 arXiv／GitHub 回應
+```
+
+### 線上模式的設定
 
 編輯 `backend/.env`：
 
@@ -117,6 +128,19 @@ LLM_REQUEST_TIMEOUT_SECONDS=180             # 推理型模型單次可能超過�
 LLM_MAX_OUTPUT_TOKENS=8192                  # 預設 4096 會讓結構化輸出被截斷
 LLM_MIN_REQUEST_INTERVAL_SECONDS=4.0        # 依供應商的每分鐘上限調整
 ```
+
+### 調整單次任務的時間
+
+線上完整跑一次約 30 分鐘，其中證據抽取佔 52%、分析佔 32%。有人在旁邊看的
+展示場景，用這兩個參數換取時間：
+
+```bash
+WORKFLOW_MAX_ITERATIONS=1        # 預設 2。每一輪都是一次搜尋＋抽取＋分析
+SEARCH_MAX_RESULTS_PER_SOURCE=3  # 預設 8。抽取是每筆來源一次模型呼叫
+```
+
+兩者一起調，一次任務約 10 分鐘。代價是證據較少、只補搜一次，結論會比較薄——
+適合展示，不適合真的拿來做決定。
 
 命令列執行一次完整任務：
 

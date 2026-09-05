@@ -3,6 +3,7 @@
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
 from app.core.llm import MockLLMClient
 from app.db.session import create_database_engine, create_session_factory, init_db
 from app.repositories.action_plan import ActionPlanRepository
@@ -200,3 +201,34 @@ def test_background_runner_uses_an_independent_database_session(tmp_path) -> Non
     database_engine.dispose()
     assert mission.status == MissionStatus.COMPLETED
     assert events[-1].event_type == "workflow_completed"
+
+
+def test_run_length_is_configurable_without_touching_code(session: Session) -> None:
+    """A demonstration someone watches and an analysis someone acts on differ.
+
+    Both levers on how long a run takes are read from settings, so a deployment
+    can trade depth for wall-clock in its environment rather than in a patch.
+    """
+
+    settings = Settings(
+        mock_llm=True,
+        mock_external_apis=True,
+        workflow_max_iterations=0,
+        search_max_results_per_source=2,
+    )
+
+    service = WorkflowService(session, settings=settings)
+    stages = default_stages(session, settings=settings)
+
+    assert service.max_iterations == 0
+    assert stages.search._max_results_per_source == 2
+
+
+def test_an_explicit_argument_still_beats_the_environment(session: Session) -> None:
+    """A caller that states a limit is never overridden by a deployment."""
+
+    settings = Settings(mock_llm=True, workflow_max_iterations=0)
+
+    service = WorkflowService(session, max_iterations=3, settings=settings)
+
+    assert service.max_iterations == 3
