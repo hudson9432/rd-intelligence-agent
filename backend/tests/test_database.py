@@ -63,11 +63,19 @@ def test_init_db_migrates_legacy_business_impact_column(tmp_path: Path) -> None:
 
     init_db(database_engine)
 
-    columns = {column["name"] for column in inspect(database_engine).get_columns("technology_opportunities")}
+    columns = {
+        column["name"]
+        for column in inspect(database_engine).get_columns("technology_opportunities")
+    }
     assert "goal_alignment" in columns
     assert "business_impact" not in columns
     with database_engine.connect() as connection:
-        assert connection.scalar(
-            text("SELECT goal_alignment FROM technology_opportunities WHERE id='opportunity-1'")
-        ) == 4
+        assert (
+            connection.scalar(
+                text(
+                    "SELECT goal_alignment FROM technology_opportunities WHERE id='opportunity-1'"
+                )
+            )
+            == 4
+        )
     database_engine.dispose()

@@ -11,10 +11,13 @@ from app.services.workflow import WorkflowService
 
 
 def create(client: TestClient) -> str:
-    return client.post("/missions", json={
-        "title": "RAG evaluation",
-        "goal": "Decide whether retrieval augmented generation is reliable enough for our product.",
-    }).json()["id"]
+    return client.post(
+        "/missions",
+        json={
+            "title": "RAG evaluation",
+            "goal": "Decide whether retrieval augmented generation is reliable enough for our product.",
+        },
+    ).json()["id"]
 
 
 def test_empty_workspace_and_missing_mission(client: TestClient) -> None:
@@ -32,7 +35,8 @@ def test_empty_workspace_and_missing_mission(client: TestClient) -> None:
 
 
 def test_offline_workflow_results_are_readable_and_mission_scoped(
-    client: TestClient, session: Session,
+    client: TestClient,
+    session: Session,
 ) -> None:
     mission_id = create(client)
     result = WorkflowService(session).run(mission_id)
@@ -62,7 +66,9 @@ def test_offline_workflow_results_are_readable_and_mission_scoped(
     assert running["action_plan"] is None
     assert running["opportunities"] == []
     assert running["evidence"]  # Saved provenance is not erased by a retry.
-    MissionService(session).update(mission_id, ResearchMissionUpdate(status=MissionStatus.FAILED))
+    MissionService(session).update(
+        mission_id, ResearchMissionUpdate(status=MissionStatus.FAILED)
+    )
     failed = client.get(f"/missions/{mission_id}/workspace").json()
     assert failed["summary"] is None
     assert failed["action_plan"] is None

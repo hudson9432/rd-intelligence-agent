@@ -17,7 +17,9 @@ from app.schemas.workflow import WorkflowDecision
 
 class MissionRunSummary(BaseModel):
     iterations_used: int = Field(default=0, ge=0)
-    handoff_status: Literal["ready_for_poc", "research_required", "no_viable_direction"] | None = None
+    handoff_status: (
+        Literal["ready_for_poc", "research_required", "no_viable_direction"] | None
+    ) = None
     evidence_count: int = Field(default=0, ge=0)
     query_history: list[str] = Field(default_factory=list)
     decision: WorkflowDecision | None = None

@@ -79,7 +79,9 @@ def list_mission_events(
 
 
 @router.get("/{mission_id}/workspace", response_model=MissionWorkspace)
-def get_mission_workspace(mission_id: UUID, session: DatabaseSession) -> MissionWorkspace:
+def get_mission_workspace(
+    mission_id: UUID, session: DatabaseSession
+) -> MissionWorkspace:
     try:
         return MissionWorkspaceService(session).get(mission_id)
     except MissionNotFoundError as error:
