@@ -1,12 +1,19 @@
 """Integration tests for the narrow B-to-C boundary."""
 
+import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from inspect import signature
 from uuid import uuid4
 
 import pytest
 
-from app.agents.analysis_llm import AnalysisGenerationError, LLMAnalysisAdapter
+from app.agents.analysis_llm import (
+    DIRECTION_BATCH_CEILING,
+    QUESTION_BATCH_CEILING,
+    AnalysisGenerationError,
+    LLMAnalysisAdapter,
+)
 from app.agents.analyst import AnalystAgent
 from app.agents.critic import CriticAgent
 from app.agents.evidence import EvidenceAgent
@@ -173,3 +180,57 @@ def test_b_evidence_agent_connects_to_c_and_produces_poc_handoff() -> None:
     assert critique.status == "ready"
     assert handoff.status == "ready_for_poc"
     assert handoff.poc_candidates[0].evidence_ids == [evidence[0].id]
+
+
+def test_over_limit_question_batch_is_trimmed_rather_than_rejected() -> None:
+    """A batch a little over the working limit must not fail the workflow.
+
+    The Critic slices candidates to its own limit on the next line, so
+    rejecting the batch would discard every earlier retrieval and extraction
+    to save questions that were going to be dropped anyway.
+    """
+
+    over_limit = 26  # what a real provider returned against a limit of 24
+    payload = json.dumps(
+        {
+            "questions": [
+                {
+                    "id": f"Q-{index}",
+                    "direction_id": "D1",
+                    "challenged_claim_id": "C1",
+                    "question": f"Does claim C1 hold under condition {index}?",
+                    "rationale": "The supplied evidence does not settle it.",
+                    "evidence_ids": [],
+                    "suggested_query": None,
+                }
+                for index in range(over_limit)
+            ]
+        }
+    )
+    client = FixedLLMClient([payload])
+    adapter = LLMAnalysisAdapter(client)
+
+    questions = adapter.generate_questions(
+        mission_goal="Find an e-commerce extension.",
+        directions=[],
+        evidence=[],
+    )
+
+    assert len(questions) == over_limit
+    assert client.calls == 1, "a valid batch must not be asked for twice"
+
+
+def test_batch_ceilings_leave_headroom_above_the_working_limits() -> None:
+    """The schema bound must not sit on the limit the agents slice to.
+
+    Reading the defaults off the signatures keeps this honest if either limit
+    is raised later: the ceilings have to move with them.
+    """
+
+    critic_limit = signature(CriticAgent).parameters["max_candidate_questions"].default
+    analyst_limit = (
+        signature(AnalystAgent).parameters["max_generated_directions"].default
+    )
+
+    assert QUESTION_BATCH_CEILING > critic_limit
+    assert DIRECTION_BATCH_CEILING > analyst_limit
