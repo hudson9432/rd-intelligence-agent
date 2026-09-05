@@ -14,6 +14,7 @@ from app.schemas.source_result import SourceResult
 
 MAX_GENERATED_QUERY_CANDIDATES = 12
 DEFAULT_MAX_QUERIES = 4
+ADVERSARIAL_QUERY_SUFFIX = "failure limitations negative results contradictory evidence"
 QueryCandidate = Annotated[str, Field(min_length=1, max_length=500)]
 
 
@@ -66,9 +67,9 @@ class SearchAgent:
                 "LLM response did not match the search-query contract"
             ) from error
 
-        queries = _select_new_queries(
+        queries = _select_query_portfolio(
             plan.queries,
-            query_history=data.query_history,
+            data=data,
             limit=self._max_queries,
         )
         sources = list(self._retriever.retrieve(queries)) if queries else []
@@ -89,11 +90,11 @@ def _mock_query_plan(data: SearchAgentInput) -> _QueryPlan:
             f"{goal} recent research papers",
             f"{goal} open source implementations",
             f"{goal} benchmarks performance evaluation",
-            f"{goal} technical adoption feasibility",
+            _adversarial_query(goal),
         ]
         notes = (
             "Deterministic first-pass plan covers research, implementations, "
-            "benchmarks, and adoption."
+            "benchmarks, and disconfirming evidence."
         )
     else:
         queries = data.missing_evidence or [
@@ -107,9 +108,40 @@ def _mock_query_plan(data: SearchAgentInput) -> _QueryPlan:
     )
 
 
+def _select_query_portfolio(
+    candidates: Sequence[str], *, data: SearchAgentInput, limit: int
+) -> list[str]:
+    """Reserve one first-pass slot for disconfirming evidence.
+
+    A live planner can omit an adversarial query even when the prompt requests
+    one. The portfolio rule therefore lives in deterministic code. Follow-up
+    rounds remain entirely driven by Critic evidence gaps.
+    """
+
+    if data.iteration != 0:
+        return _select_new_queries(
+            candidates, query_history=data.query_history, limit=limit
+        )
+
+    adversarial = _adversarial_query(data.research_goal)
+    history_keys = {_query_key(query) for query in data.query_history}
+    adversarial_is_new = _query_key(adversarial) not in history_keys
+    ordinary_limit = limit - int(adversarial_is_new)
+    ordinary = _select_new_queries(
+        candidates,
+        query_history=[*data.query_history, adversarial],
+        limit=ordinary_limit,
+    )
+    if adversarial_is_new:
+        ordinary.append(adversarial)
+    return ordinary
+
+
 def _select_new_queries(
     candidates: Sequence[str], *, query_history: Sequence[str], limit: int
 ) -> list[str]:
+    if limit <= 0:
+        return []
     seen = {_query_key(query) for query in query_history}
     selected: list[str] = []
     for candidate in candidates:
@@ -130,3 +162,7 @@ def _bounded_query(value: str) -> str:
 
 def _query_key(value: str) -> str:
     return " ".join(value.casefold().split())
+
+
+def _adversarial_query(goal: str) -> str:
+    return _bounded_query(f"{goal} {ADVERSARIAL_QUERY_SUFFIX}")

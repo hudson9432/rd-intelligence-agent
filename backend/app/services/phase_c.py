@@ -336,7 +336,10 @@ def _poc_candidate(
     )
     unresolved_questions = [
         item.question.question
-        for item in critique.accepted_questions
+        for item in [
+            *critique.accepted_questions,
+            *critique.research_gap_questions,
+        ]
         if item.question.direction_id == direction.id
     ]
     return PocCandidate(

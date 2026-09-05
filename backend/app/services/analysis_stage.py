@@ -30,6 +30,7 @@ from app.schemas.evidence_card import EvidenceCard
 from app.services.evidence_sufficiency import (
     assess_evidence_sufficiency,
     build_sufficiency_research_request,
+    partition_evidence_by_access,
 )
 from app.services.phase_c import build_phase_c_handoff
 
@@ -47,6 +48,7 @@ class PhaseCAnalysisStage:
         minimum_effective_evidence: int = 2,
         minimum_independent_sources: int = 2,
         minimum_evidence_relevance: float = 0.2,
+        minimum_challenge_relevance: float = 0.1,
         minimum_extraction_confidence: float = 0.6,
     ) -> None:
         client = llm_client or get_llm_client(settings or get_settings())
@@ -61,6 +63,7 @@ class PhaseCAnalysisStage:
         self._minimum_effective_evidence = minimum_effective_evidence
         self._minimum_independent_sources = minimum_independent_sources
         self._minimum_evidence_relevance = minimum_evidence_relevance
+        self._minimum_challenge_relevance = minimum_challenge_relevance
         self._minimum_extraction_confidence = minimum_extraction_confidence
 
     def analyze(
@@ -75,6 +78,7 @@ class PhaseCAnalysisStage:
             minimum_effective_evidence=self._minimum_effective_evidence,
             minimum_independent_sources=self._minimum_independent_sources,
             minimum_relevance=self._minimum_evidence_relevance,
+            minimum_challenge_relevance=self._minimum_challenge_relevance,
             minimum_extraction_confidence=self._minimum_extraction_confidence,
         )
         if not sufficiency.sufficient:
@@ -101,17 +105,24 @@ class PhaseCAnalysisStage:
             )
 
         try:
+            support_pool, challenge_pool = partition_evidence_by_access(
+                evidence, sufficiency
+            )
             analysis = self._analyst.analyze(
-                mission_goal=mission_goal, evidence=evidence
+                mission_goal=mission_goal, evidence=support_pool
             )
             critique = self._critic.critique(
-                mission_goal=mission_goal, analysis=analysis, evidence=evidence
+                mission_goal=mission_goal,
+                analysis=analysis,
+                evidence=challenge_pool,
             )
             # Claim review is only meaningful once directions exist; asking for
             # it on a research-required analysis would spend a call on nothing.
             claim_reviews: Sequence[ClaimReview] = (
                 self._adapter.review_claims(
-                    analysis=analysis, critique=critique, evidence=evidence
+                    analysis=analysis,
+                    critique=critique,
+                    evidence=challenge_pool,
                 )
                 if analysis.status == "ready"
                 else []
@@ -120,7 +131,7 @@ class PhaseCAnalysisStage:
                 mission_goal=mission_goal,
                 analysis=analysis,
                 critique=critique,
-                evidence=evidence,
+                evidence=challenge_pool,
                 claim_reviews=claim_reviews,
                 research_exhausted=research_exhausted,
             )

@@ -13,6 +13,10 @@ from app.schemas.evidence_card import EvidenceCard
 from app.schemas.llm import LLMCompletion, LLMMessage
 from app.schemas.source_result import SourceResult
 from app.services.analysis_stage import PhaseCAnalysisStage
+from app.services.evidence_sufficiency import (
+    assess_evidence_sufficiency,
+    partition_evidence_by_access,
+)
 from tests.test_workflow_orchestrator import (
     MISSION_ID,
     PlanningAction,
@@ -162,6 +166,35 @@ def test_low_quality_cards_are_reported_but_do_not_satisfy_the_gate() -> None:
         ["low_relevance"],
         ["low_extraction_confidence"],
     ]
+    assert [item.challenge_eligible for item in report.assessments] == [True, False]
+    assert report.challenge_evidence_count == 1
+
+
+def test_challenge_only_evidence_is_visible_to_critic_but_not_analyst() -> None:
+    support = evidence_card(
+        "38ms median latency",
+        "4-bit quantization reached 38ms median latency.",
+    )
+    challenge_only = evidence_card(
+        "Performance regressed under sustained load.",
+        "Thermal throttling increased latency.",
+        "The experiment covered only a narrow workload.",
+    ).model_copy(update={"relevance_score": 0.15})
+    excluded = evidence_card("Unverified result", "Unverified snippet").model_copy(
+        update={"relevance_score": 0.15, "extraction_confidence": 0.4}
+    )
+    evidence = [support, challenge_only, excluded]
+
+    report = assess_evidence_sufficiency(
+        evidence,
+        minimum_effective_evidence=1,
+        minimum_independent_sources=1,
+    )
+    support_pool, challenge_pool = partition_evidence_by_access(evidence, report)
+
+    assert [card.id for card in support_pool] == [support.id]
+    assert [card.id for card in challenge_pool] == [support.id, challenge_only.id]
+    assert report.challenge_evidence_count == 2
 
 
 def test_two_cards_from_one_source_still_return_to_research() -> None:

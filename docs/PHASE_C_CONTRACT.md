@@ -34,6 +34,14 @@ hard gates because a non-experimental strategy source can still be relevant.
 Claim-specific support, counterevidence, and testability remain the later
 viability gate's responsibility.
 
+Evidence access is asymmetric. The Analyst receives only support-eligible
+cards. The Critic and claim reviewer receive a challenge pool containing every
+support card plus cards with extraction confidence of at least 0.6, relevance
+of at least 0.1, and a stated result or limitation. A challenge-only card can
+expose a conflicting result or missing control, but it cannot generate a
+direction or increase that direction's support score. The report records both
+permissions and the challenge-pool count.
+
 If the entry gate fails while research budget remains, C returns a bounded
 targeted research request without spending Analyst/Critic model calls. If the
 budget is exhausted, it returns `no_viable_direction`; low-quality or
@@ -68,6 +76,13 @@ Rejected questions do not consume an accepted slot. If no question survives,
 the Critic creates a bounded research request from the least-supported claims.
 Accepted questions with suggested searches also produce a targeted request of
 at most three queries.
+
+A question is retained as a `research_gap` instead of rejected when diversity
+and rationality pass, viewpoint coverage fails specifically because the
+question cites no current evidence, and it includes a concrete follow-up
+query. Research gaps consume the same bounded question budget, trigger
+targeted re-search, and become unresolved PoC questions if the search budget
+is exhausted. Low-rationality or repetitive questions are still rejected.
 
 ## Pro/con claim verdicts
 
@@ -121,8 +136,11 @@ candidate as an unresolved question, which is what a PoC is for.
 
 C therefore owns identification of targeted evidence gaps and the viability
 gate. The Search Agent converts those gaps and suggested searches into final,
-history-aware queries. D owns loop execution, iteration limits, persistence,
-events, and conversion of a PoC candidate into an ActionPlan.
+history-aware queries. On the first iteration, deterministic selection reserves
+one of the four query slots for failures, limitations, negative results, or
+contradictory evidence; this does not depend on the model remembering to
+produce an adversarial query. D owns loop execution, iteration limits,
+persistence, events, and conversion of a PoC candidate into an ActionPlan.
 
 ## Integration boundaries
 

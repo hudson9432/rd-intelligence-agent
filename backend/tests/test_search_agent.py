@@ -49,7 +49,7 @@ def search_input(**overrides: object) -> SearchAgentInput:
     return SearchAgentInput(**values)
 
 
-def test_mock_first_pass_covers_four_research_dimensions() -> None:
+def test_mock_first_pass_reserves_a_query_for_disconfirming_evidence() -> None:
     retriever = RecordingRetriever()
 
     output = SearchAgent(MockLLMClient(), retriever).run(search_input())
@@ -59,7 +59,8 @@ def test_mock_first_pass_covers_four_research_dimensions() -> None:
     assert "research papers" in combined
     assert "open source" in combined
     assert "benchmarks" in combined
-    assert "adoption" in combined
+    assert "negative results" in combined
+    assert "contradictory evidence" in combined
     assert retriever.calls == [output.generated_queries]
     assert len(output.retrieved_sources) == 1
 
@@ -87,11 +88,14 @@ def test_real_plan_is_normalized_deduplicated_and_bounded() -> None:
 
     output = SearchAgent(client, retriever).run(search_input())
 
-    assert output.generated_queries == ["Query A", "Query B", "Query C", "Query D"]
+    assert output.generated_queries[:3] == ["Query A", "Query B", "Query C"]
+    assert "negative results" in output.generated_queries[3]
     assert retriever.calls == [output.generated_queries]
 
 
-def test_no_new_query_skips_retrieval() -> None:
+def test_first_pass_still_searches_for_disconfirming_evidence_when_plan_is_stale() -> (
+    None
+):
     retriever = RecordingRetriever()
     client = StaticLLMClient(
         '{"queries":["Known query"],"notes":"Nothing else was useful."}'
@@ -99,6 +103,21 @@ def test_no_new_query_skips_retrieval() -> None:
 
     output = SearchAgent(client, retriever).run(
         search_input(query_history=["known QUERY"])
+    )
+
+    assert len(output.generated_queries) == 1
+    assert "negative results" in output.generated_queries[0]
+    assert retriever.calls == [output.generated_queries]
+
+
+def test_follow_up_with_no_new_query_skips_retrieval() -> None:
+    retriever = RecordingRetriever()
+    client = StaticLLMClient(
+        '{"queries":["Known query"],"notes":"Nothing else was useful."}'
+    )
+
+    output = SearchAgent(client, retriever).run(
+        search_input(iteration=1, query_history=["known QUERY"])
     )
 
     assert output.generated_queries == []
