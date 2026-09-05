@@ -27,6 +27,10 @@ from app.core.config import Settings, get_settings
 from app.core.llm import LLMClient, LLMProviderError, get_llm_client
 from app.schemas.analysis import ClaimReview, PhaseCHandoff
 from app.schemas.evidence_card import EvidenceCard
+from app.services.evidence_sufficiency import (
+    assess_evidence_sufficiency,
+    build_sufficiency_research_request,
+)
 from app.services.phase_c import build_phase_c_handoff
 
 
@@ -40,6 +44,10 @@ class PhaseCAnalysisStage:
         settings: Settings | None = None,
         max_active_directions: int = 4,
         minimum_question_score: float = 0.6,
+        minimum_effective_evidence: int = 2,
+        minimum_independent_sources: int = 2,
+        minimum_evidence_relevance: float = 0.2,
+        minimum_extraction_confidence: float = 0.6,
     ) -> None:
         client = llm_client or get_llm_client(settings or get_settings())
         adapter = LLMAnalysisAdapter(client)
@@ -50,6 +58,10 @@ class PhaseCAnalysisStage:
         self._critic = CriticAgent(
             adapter, adapter, minimum_score=minimum_question_score
         )
+        self._minimum_effective_evidence = minimum_effective_evidence
+        self._minimum_independent_sources = minimum_independent_sources
+        self._minimum_evidence_relevance = minimum_evidence_relevance
+        self._minimum_extraction_confidence = minimum_extraction_confidence
 
     def analyze(
         self,
@@ -58,6 +70,36 @@ class PhaseCAnalysisStage:
         evidence: Sequence[EvidenceCard],
         research_exhausted: bool,
     ) -> PhaseCHandoff:
+        sufficiency = assess_evidence_sufficiency(
+            evidence,
+            minimum_effective_evidence=self._minimum_effective_evidence,
+            minimum_independent_sources=self._minimum_independent_sources,
+            minimum_relevance=self._minimum_evidence_relevance,
+            minimum_extraction_confidence=self._minimum_extraction_confidence,
+        )
+        if not sufficiency.sufficient:
+            reason = (
+                "Evidence is insufficient for Phase C: "
+                f"{sufficiency.effective_evidence_count}/"
+                f"{sufficiency.minimum_effective_evidence} effective cards from "
+                f"{sufficiency.independent_source_count}/"
+                f"{sufficiency.minimum_independent_sources} independent sources."
+            )
+            if research_exhausted:
+                return PhaseCHandoff(
+                    status="no_viable_direction",
+                    evidence_sufficiency=sufficiency,
+                    reason=f"{reason} The bounded research budget is exhausted.",
+                )
+            return PhaseCHandoff(
+                status="research_required",
+                research_request=build_sufficiency_research_request(
+                    mission_goal=mission_goal, report=sufficiency
+                ),
+                evidence_sufficiency=sufficiency,
+                reason=reason,
+            )
+
         try:
             analysis = self._analyst.analyze(
                 mission_goal=mission_goal, evidence=evidence
@@ -74,13 +116,16 @@ class PhaseCAnalysisStage:
                 if analysis.status == "ready"
                 else []
             )
-            return build_phase_c_handoff(
+            handoff = build_phase_c_handoff(
                 mission_goal=mission_goal,
                 analysis=analysis,
                 critique=critique,
                 evidence=evidence,
                 claim_reviews=claim_reviews,
                 research_exhausted=research_exhausted,
+            )
+            return handoff.model_copy(
+                update={"evidence_sufficiency": sufficiency}
             )
         except LLMProviderError as error:
             raise WorkflowStageError(

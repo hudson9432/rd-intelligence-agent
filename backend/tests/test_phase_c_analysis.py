@@ -399,6 +399,51 @@ def test_critic_rejects_a_homogeneous_question() -> None:
     assert outcome.status == "ready"
 
 
+def test_critic_does_not_treat_similar_questions_for_different_directions_as_duplicates() -> None:
+    mission_id = uuid4()
+    first_card = evidence_card(
+        mission_id=mission_id, relevance=0.9, confidence=0.9
+    )
+    second_card = evidence_card(
+        mission_id=mission_id, relevance=0.9, confidence=0.9
+    )
+    first = direction("d1", "Direction one", [first_card.id], claim_id="c1")
+    second = direction("d2", "Direction two", [second_card.id], claim_id="c2")
+    analysis = AnalystOutcome(
+        status="ready",
+        active_directions=[ranked_direction(first), ranked_direction(second)],
+    )
+    duplicate_text = "Does the evidence control the same important variable?"
+    questions = [
+        question(
+            "q1",
+            direction_id="d1",
+            claim_id="c1",
+            text=duplicate_text,
+            evidence_ids=[first_card.id],
+        ),
+        question(
+            "q2",
+            direction_id="d2",
+            claim_id="c2",
+            text=duplicate_text,
+            evidence_ids=[second_card.id],
+        ),
+    ]
+
+    outcome = CriticAgent(
+        FixedQuestionGenerator(questions),
+        ScoreByQuestionReviewer({}),
+    ).critique(
+        mission_goal="Compare two directions.",
+        analysis=analysis,
+        evidence=[first_card, second_card],
+    )
+
+    assert [item.question.id for item in outcome.accepted_questions] == ["q1", "q2"]
+    assert outcome.rejected_questions == []
+
+
 def test_all_rejected_questions_end_phase_c_with_targeted_research() -> None:
     mission_id = uuid4()
     card = evidence_card(mission_id=mission_id, relevance=0.9, confidence=0.9)

@@ -124,7 +124,9 @@ class CriticAgent:
 
         accepted: list[EvaluatedCritiqueQuestion] = []
         rejected: list[EvaluatedCritiqueQuestion] = []
-        accepted_texts: list[str] = []
+        accepted_texts_by_direction: dict[str, list[str]] = {
+            direction_id: [] for direction_id in directions
+        }
         seen_question_ids: set[str] = set()
 
         # Candidates are a replacement queue: a rejected question consumes no
@@ -159,7 +161,10 @@ class CriticAgent:
                 evidence=evidence,
             )
             scores = QuestionScores(
-                diversity=question_diversity(candidate.question, accepted_texts),
+                diversity=question_diversity(
+                    candidate.question,
+                    accepted_texts_by_direction[candidate.direction_id],
+                ),
                 rationality=semantic.rationality,
                 viewpoint_coverage=semantic.viewpoint_coverage,
             )
@@ -181,7 +186,9 @@ class CriticAgent:
                 continue
 
             accepted.append(evaluated)
-            accepted_texts.append(candidate.question)
+            accepted_texts_by_direction[candidate.direction_id].append(
+                candidate.question
+            )
 
         if not accepted:
             research_request = _fallback_research_request(
