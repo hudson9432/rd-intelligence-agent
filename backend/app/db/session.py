@@ -77,7 +77,7 @@ def init_db(database_engine: Engine = engine) -> None:
     Base.metadata.create_all(bind=database_engine)
 
 
-def get_db() -> Generator[Session, None, None]:
+def get_db() -> Generator[Session]:
     """Yield one request-scoped SQLAlchemy session."""
 
     with SessionLocal() as session:

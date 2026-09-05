@@ -165,9 +165,7 @@ class PocCandidate(BaseModel):
 class PhaseCHandoff(BaseModel):
     """The only three outcomes Phase C can hand to orchestration."""
 
-    status: Literal[
-        "ready_for_poc", "research_required", "no_viable_direction"
-    ]
+    status: Literal["ready_for_poc", "research_required", "no_viable_direction"]
     poc_candidates: list[PocCandidate] = Field(default_factory=list, max_length=4)
     claim_assessments: list[EvaluatedClaim] = Field(default_factory=list)
     research_request: TargetedResearchRequest | None = None

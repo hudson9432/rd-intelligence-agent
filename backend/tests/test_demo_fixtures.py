@@ -15,7 +15,9 @@ from app.schemas.evidence_card import EvidenceCard
 from app.services.analysis_stage import PhaseCAnalysisStage
 from app.services.research_source import ResearchSourceService
 
-GOAL = "Decide whether retrieval augmented generation is reliable enough for our product."
+GOAL = (
+    "Decide whether retrieval augmented generation is reliable enough for our product."
+)
 
 
 def mock_settings() -> Settings:
