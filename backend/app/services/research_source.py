@@ -35,6 +35,10 @@ class ResearchSourceService:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
 
+    @property
+    def _request_interval(self) -> float:
+        return self._settings.source_min_request_interval_seconds
+
     async def search(
         self,
         query: str,
@@ -97,7 +101,12 @@ class ResearchSourceService:
         self, client: httpx.AsyncClient, query: str, max_results: int
     ) -> tuple[list[SourceResult], SourceError | None]:
         try:
-            return await search_arxiv(query, max_results, client=client), None
+            return await search_arxiv(
+                query,
+                max_results,
+                client=client,
+                min_request_interval_seconds=self._request_interval,
+            ), None
         except SourceUnavailableError as exc:
             return [], SourceError(source_type=SourceType.ARXIV, message=str(exc))
 
@@ -115,6 +124,7 @@ class ResearchSourceService:
                 max_results,
                 client=client,
                 token=token,
+                min_request_interval_seconds=self._request_interval,
             ), None
         except SourceUnavailableError as exc:
             return [], SourceError(source_type=SourceType.GITHUB, message=str(exc))

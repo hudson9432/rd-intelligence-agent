@@ -91,7 +91,7 @@ async def test_real_mode_output_matches_mock_mode(
     mock_response = await mock_service.search("transformers", max_results_per_source=10)
 
     async def fake_search_arxiv(
-        query: str, max_results: int, *, client
+        query: str, max_results: int, *, client, **kwargs
     ) -> list[SourceResult]:
         return mock_service._load_arxiv_fixture()
 
@@ -101,6 +101,7 @@ async def test_real_mode_output_matches_mock_mode(
         *,
         client,
         token: str | None = None,
+        **kwargs,
     ) -> list[SourceResult]:
         return mock_service._load_github_fixture()
 
@@ -122,6 +123,7 @@ async def test_service_passes_optional_github_token(monkeypatch) -> None:
         *,
         client,
         token: str | None = None,
+        **kwargs,
     ) -> list[SourceResult]:
         captured["token"] = token
         return []
@@ -145,7 +147,7 @@ async def test_one_source_failing_still_returns_the_other(monkeypatch) -> None:
     github_fixture = mock_service._load_github_fixture()
 
     async def failing_arxiv(
-        query: str, max_results: int, *, client
+        query: str, max_results: int, *, client, **kwargs
     ) -> list[SourceResult]:
         raise SourceUnavailableError("arxiv unreachable")
 
@@ -155,6 +157,7 @@ async def test_one_source_failing_still_returns_the_other(monkeypatch) -> None:
         *,
         client,
         token: str | None = None,
+        **kwargs,
     ) -> list[SourceResult]:
         return github_fixture
 
@@ -174,7 +177,7 @@ async def test_both_sources_failing_returns_no_results_and_two_errors(
     monkeypatch,
 ) -> None:
     async def failing_arxiv(
-        query: str, max_results: int, *, client
+        query: str, max_results: int, *, client, **kwargs
     ) -> list[SourceResult]:
         raise SourceUnavailableError("arxiv unreachable")
 
@@ -184,6 +187,7 @@ async def test_both_sources_failing_returns_no_results_and_two_errors(
         *,
         client,
         token: str | None = None,
+        **kwargs,
     ) -> list[SourceResult]:
         raise SourceUnavailableError("github unreachable")
 

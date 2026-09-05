@@ -21,6 +21,7 @@ async def search_arxiv(
     max_results: int,
     *,
     client: httpx.AsyncClient,
+    min_request_interval_seconds: float = 0,
 ) -> list[SourceResult]:
     """Search arXiv and return normalized, deduplicated results.
 
@@ -36,6 +37,7 @@ async def search_arxiv(
             "start": "0",
             "max_results": str(max_results),
         },
+        min_request_interval_seconds=min_request_interval_seconds,
     )
     try:
         return parse_feed(response.text)
