@@ -99,6 +99,12 @@ def test_no_evidence_asks_for_research() -> None:
     assert handoff.status == "research_required"
     assert handoff.research_request is not None
     assert handoff.poc_candidates == []
+    assert handoff.evidence_sufficiency is not None
+    assert handoff.evidence_sufficiency.effective_evidence_count == 0
+    assert handoff.evidence_sufficiency.missing_requirements == [
+        "effective_evidence",
+        "independent_sources",
+    ]
 
 
 def test_no_evidence_with_the_budget_spent_reports_no_viable_direction() -> None:
@@ -107,6 +113,71 @@ def test_no_evidence_with_the_budget_spent_reports_no_viable_direction() -> None
     assert handoff.status == "no_viable_direction"
     assert handoff.research_request is None
     assert handoff.poc_candidates == []
+
+
+def test_one_high_quality_source_returns_to_research() -> None:
+    evidence = [
+        evidence_card(
+            "38ms median latency",
+            "4-bit quantization reached 38ms median latency.",
+            "Measured on one device class only.",
+        )
+    ]
+
+    handoff = stage().analyze(
+        mission_goal=GOAL, evidence=evidence, research_exhausted=False
+    )
+
+    assert handoff.status == "research_required"
+    assert handoff.research_request is not None
+    assert any(
+        "independent replication" in query for query in handoff.research_request.queries
+    )
+    report = handoff.evidence_sufficiency
+    assert report is not None
+    assert report.effective_evidence_count == 1
+    assert report.independent_source_count == 1
+
+
+def test_low_quality_cards_are_reported_but_do_not_satisfy_the_gate() -> None:
+    low_relevance = evidence_card("result", "snippet").model_copy(
+        update={"relevance_score": 0.19}
+    )
+    low_confidence = evidence_card("result", "snippet").model_copy(
+        update={"extraction_confidence": 0.59}
+    )
+
+    handoff = stage().analyze(
+        mission_goal=GOAL,
+        evidence=[low_relevance, low_confidence],
+        research_exhausted=False,
+    )
+
+    report = handoff.evidence_sufficiency
+    assert report is not None
+    assert handoff.status == "research_required"
+    assert report.total_evidence_count == 2
+    assert report.effective_evidence_count == 0
+    assert [item.exclusion_reasons for item in report.assessments] == [
+        ["low_relevance"],
+        ["low_extraction_confidence"],
+    ]
+
+
+def test_two_cards_from_one_source_still_return_to_research() -> None:
+    evidence = supported_evidence()
+    evidence[1] = evidence[1].model_copy(update={"source_id": evidence[0].source_id})
+
+    handoff = stage().analyze(
+        mission_goal=GOAL, evidence=evidence, research_exhausted=False
+    )
+
+    report = handoff.evidence_sufficiency
+    assert report is not None
+    assert handoff.status == "research_required"
+    assert report.effective_evidence_count == 2
+    assert report.independent_source_count == 1
+    assert report.missing_requirements == ["independent_sources"]
 
 
 def test_evidence_without_limitations_yields_targeted_queries() -> None:
@@ -137,6 +208,8 @@ def test_supported_evidence_produces_a_grounded_poc_candidate() -> None:
     )
 
     assert handoff.status == "ready_for_poc"
+    assert handoff.evidence_sufficiency is not None
+    assert handoff.evidence_sufficiency.sufficient is True
     assert handoff.poc_candidates
     candidate = handoff.poc_candidates[0]
     # Invariant 2: every cited ID must trace back to the supplied evidence.
