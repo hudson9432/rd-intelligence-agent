@@ -17,7 +17,16 @@ from pydantic import BaseModel, Field, ValidationError
 from app.core.config import Settings
 from app.schemas.llm import LLMCompletion, LLMMessage
 
-REQUEST_TIMEOUT_SECONDS = 30.0
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 30.0
+"""Long enough for a fast hosted model, not for every provider.
+
+Providers differ in latency by an order of magnitude for the same prompt. The
+analysis prompts ask for the largest structured output in the workflow, and a
+model that reasons before answering can spend well over half a minute on one,
+so this is configurable rather than fixed: a hard-coded timeout is an
+assumption about provider speed baked into a client that claims to be
+provider-independent.
+"""
 MAX_ATTEMPTS = 3
 
 StructuredModel = TypeVar("StructuredModel", bound=BaseModel)
@@ -157,11 +166,15 @@ class OpenAICompatibleLLMClient(LLMClient):
         api_key: str,
         model: str,
         min_request_interval_seconds: float = 0,
+        request_timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
+        if request_timeout_seconds <= 0:
+            raise ValueError("request_timeout_seconds must be positive")
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._model = model
+        self._request_timeout_seconds = request_timeout_seconds
         self._min_request_interval_seconds = min_request_interval_seconds
         self._transport = transport
         self._pacer = _shared_pacer(self._base_url, self._model)
@@ -191,7 +204,7 @@ class OpenAICompatibleLLMClient(LLMClient):
 
         last_error: Exception | None = None
         with httpx.Client(
-            timeout=REQUEST_TIMEOUT_SECONDS, transport=self._transport
+            timeout=self._request_timeout_seconds, transport=self._transport
         ) as client:
             for _ in range(MAX_ATTEMPTS):
                 try:
@@ -258,4 +271,5 @@ def get_llm_client(settings: Settings) -> LLMClient:
         api_key=api_key,
         model=settings.llm_model,
         min_request_interval_seconds=settings.llm_min_request_interval_seconds,
+        request_timeout_seconds=settings.llm_request_timeout_seconds,
     )

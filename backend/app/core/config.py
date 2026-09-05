@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     `GITHUB_TOKEN` is set.
     """
 
+    llm_request_timeout_seconds: float = Field(default=30.0, gt=0, le=600)
+    """Seconds to wait for one provider response.
+
+    Raise it for a slower model, or one that reasons before answering: the
+    analysis prompts ask for the largest structured output in the workflow and
+    are the first to exceed a short timeout.
+    """
+
     mock_llm: bool = True
     mock_external_apis: bool = True
     demo_mode: bool = False
