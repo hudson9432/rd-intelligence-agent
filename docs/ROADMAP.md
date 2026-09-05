@@ -16,7 +16,7 @@ Status values: `complete`, `in progress`, `next`, `planned`, `optional`.
 | 10 | complete | Decision Engine |
 | 11 | complete | Action Agent and PoC task plan |
 | 12 | optional | User-approved calendar proposal/execution integration |
-| 13 | in progress | Mission, evidence, decision, and action frontend views |
+| 13 | complete | Mission, evidence, decision, and action frontend views |
 | 14 | planned | Deterministic offline Demo Mode |
 | 15 | planned | Comprehensive unit, agent, API, and workflow tests |
 | 16 | planned | Engineering audit and focused refactor |

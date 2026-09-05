@@ -11,8 +11,9 @@ Copy `.env.example` to `.env.local` when the backend is not available at the
 default `http://127.0.0.1:8000` URL. `NEXT_PUBLIC_API_URL` is embedded into the
 browser bundle at build time.
 
-Open <http://localhost:3000>. The dashboard can create and list missions through
-the backend API; the research workflow itself is not connected yet.
+Open <http://localhost:3000>. The dashboard can create and list missions, start
+the background research workflow, poll its progress, and display saved sources,
+evidence, scored alternatives, the current decision, and the PoC action plan.
 
 Run the frontend checks with:
 

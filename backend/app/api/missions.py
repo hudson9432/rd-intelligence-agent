@@ -5,12 +5,14 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 
 from app.api.dependencies import (
+    DatabaseSession,
     MissionServiceDependency,
     WorkflowServiceDependency,
 )
 from app.models.agent_event import AgentEvent as AgentEventModel
 from app.models.research_mission import ResearchMission as ResearchMissionModel
 from app.schemas.agent_event import AgentEvent
+from app.schemas.mission_workspace import MissionWorkspace
 from app.schemas.research_mission import (
     ResearchMissionCreate,
     ResearchMissionDetail,
@@ -18,6 +20,7 @@ from app.schemas.research_mission import (
 )
 from app.schemas.workflow import WorkflowRunAccepted, WorkflowRunResult
 from app.services.mission import MissionNotFoundError
+from app.services.mission_workspace import MissionWorkspaceService
 from app.services.workflow import (
     WorkflowAlreadyRunningError,
     run_workflow_in_background,
@@ -71,6 +74,16 @@ def list_mission_events(
 ) -> list[AgentEventModel]:
     try:
         return service.list_events(mission_id)
+    except MissionNotFoundError as error:
+        raise _not_found(error) from error
+
+
+@router.get("/{mission_id}/workspace", response_model=MissionWorkspace)
+def get_mission_workspace(
+    mission_id: UUID, session: DatabaseSession
+) -> MissionWorkspace:
+    try:
+        return MissionWorkspaceService(session).get(mission_id)
     except MissionNotFoundError as error:
         raise _not_found(error) from error
 
