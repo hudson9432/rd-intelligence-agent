@@ -99,10 +99,19 @@ class AnalysisStage(Protocol):
 
 
 class DecisionStage(Protocol):
-    """Phase 10. Converts a handoff into a go/no-go recommendation."""
+    """Phase 10. Scores the candidates and recommends one.
+
+    Takes the evidence, not only the handoff: a candidate carries evidence ids
+    rather than the cards, and judging maturity or novelty from identifiers is
+    not possible.
+    """
 
     def decide(
-        self, *, mission_goal: str, handoff: PhaseCHandoff
+        self,
+        *,
+        mission_goal: str,
+        handoff: PhaseCHandoff,
+        evidence: Sequence[EvidenceCard],
     ) -> WorkflowDecision: ...
 
 
@@ -488,7 +497,9 @@ class WorkflowOrchestrator:
 
         try:
             decision = self.stages.decision.decide(
-                mission_goal=state.goal, handoff=state.handoff
+                mission_goal=state.goal,
+                handoff=state.handoff,
+                evidence=list(state.evidence),
             )
         except WorkflowStageError as error:
             return _failure(WorkflowStage.DECISION, error, emit)

@@ -13,7 +13,7 @@ Status values: `complete`, `in progress`, `next`, `planned`, `optional`.
 | 07 | complete | Analyst Agent and deterministic opportunity scoring |
 | 08 | complete | Critic Agent, coverage scoring, targeted query output |
 | 09 | in progress | LangGraph orchestrator and bounded re-search routing |
-| 10 | planned | Decision Engine |
+| 10 | complete | Decision Engine |
 | 11 | complete | Action Agent and PoC task plan |
 | 12 | optional | User-approved calendar proposal/execution integration |
 | 13 | in progress | Mission, evidence, decision, and action frontend views |
@@ -52,6 +52,30 @@ invented quotes; if every new source is rejected, the workflow fails explicitly.
 Phases 07 and 08 landed with the Analyst, Critic, coverage scoring, and
 targeted query output, recorded in `docs/PHASE_C_CONTRACT.md`. The table said
 `planned` for longer than it should have.
+
+Phase 10 scores every candidate on six dimensions and recommends the highest.
+Four are rated by a model against the supplied evidence, each anchored so a
+score means the same thing every time — `technical_maturity` follows the NASA
+technology readiness scale, and `novelty` is explicitly rarity *within the
+supplied evidence* rather than in the world. The other two are derived in code
+from what Phase C established, and the combining formula is code as well.
+
+The formula's shape is borrowed: RICE supplies the point that confidence
+multiplies and effort divides, and the benefit/readiness/cost grouping follows
+stage-gate scorecards. The weighting inside each group is flat, because there
+is no evidence that novelty should outrank goal alignment and a precise weight
+vector would manufacture the false precision the scoring exists to avoid. Read
+the score as merit per unit of difficulty and beside the six dimensions, not
+instead of them.
+
+It also closes a gap nothing else covered: `goal_alignment` is the only place
+that asks whether a direction answers the mission's question. The Analyst ranks
+on evidence coverage and breaks ties on title, so a well-evidenced but
+tangential direction otherwise wins by default. The field replaced
+`business_impact`, which no available data could ground.
+
+Every scored candidate is stored, not only the winner, because a reader who
+cannot see what the alternatives scored has no way to disagree.
 
 Phase 11 turns the selected PoC candidate into a task plan. Every task must
 name an open item the candidate carries — an unsettled claim or a reviewer

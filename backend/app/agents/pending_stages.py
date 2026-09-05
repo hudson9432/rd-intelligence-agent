@@ -61,8 +61,14 @@ class PendingDecisionStage:
     the real Decision Engine owns weighting and thresholds.
     """
 
-    def decide(self, *, mission_goal: str, handoff: PhaseCHandoff) -> WorkflowDecision:
-        del mission_goal
+    def decide(
+        self,
+        *,
+        mission_goal: str,
+        handoff: PhaseCHandoff,
+        evidence: Sequence[EvidenceCard] = (),
+    ) -> WorkflowDecision:
+        del mission_goal, evidence
         if handoff.status == "ready_for_poc" and handoff.poc_candidates:
             candidate = handoff.poc_candidates[0]
             return WorkflowDecision(
