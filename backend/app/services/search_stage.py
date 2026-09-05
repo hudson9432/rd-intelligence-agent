@@ -19,7 +19,7 @@ from app.core.config import Settings, get_settings
 from app.core.llm import LLMClient, LLMProviderError, get_llm_client
 from app.schemas.search_agent import SearchAgentInput, SearchAgentOutput
 from app.schemas.source_result import SourceError, SourceResult, SourceType
-from app.services.research_source import ResearchSourceService
+from app.services.research_source import DEFAULT_SOURCES, ResearchSourceService
 from app.tools.dedupe import content_hash, normalize_url
 
 T = TypeVar("T")
@@ -110,12 +110,31 @@ class ResearchSourceSearchStage:
                 f"The search-query provider returned an unusable response: {error}"
             ) from error
 
-    def retrieve(self, queries: Sequence[str]) -> Sequence[SourceResult]:
-        """Execute planned queries and return only sources new to this run."""
+    def retrieve(
+        self, queries: Sequence[str], repository_queries: Sequence[str] = ()
+    ) -> Sequence[SourceResult]:
+        """Execute planned queries and return only sources new to this run.
+
+        Paper search ranks prose by relevance; repository search matches
+        keywords, so a sentence returns nothing there. When the planner supplies
+        keyword queries each source is asked in its own language. When it does
+        not, every source is asked with the prose queries, as before.
+        """
+
+        plan: list[tuple[str, list[SourceType] | None]] = []
+        if repository_queries:
+            paper_sources = self._sources_of_type(exclude=SourceType.GITHUB)
+            repository_sources = self._sources_of_type(only=SourceType.GITHUB)
+            if paper_sources:
+                plan += [(query, paper_sources) for query in queries]
+            if repository_sources:
+                plan += [(query, repository_sources) for query in repository_queries]
+        else:
+            plan = [(query, self._sources) for query in queries]
 
         fresh: list[SourceResult] = []
-        for query in queries:
-            response = run_blocking(self._run_query(query))
+        for query, sources in plan:
+            response = run_blocking(self._run_query(query, sources))
             self._round_errors.extend(response.errors)
             for result in response.results:
                 identity = _identity(result)
@@ -125,10 +144,23 @@ class ResearchSourceSearchStage:
                 fresh.append(result)
         return fresh
 
-    async def _run_query(self, query: str) -> Any:
+    def _sources_of_type(
+        self,
+        *,
+        only: SourceType | None = None,
+        exclude: SourceType | None = None,
+    ) -> list[SourceType]:
+        configured = (
+            list(self._sources) if self._sources is not None else list(DEFAULT_SOURCES)
+        )
+        if only is not None:
+            return [source for source in configured if source is only]
+        return [source for source in configured if source is not exclude]
+
+    async def _run_query(self, query: str, sources: Any = None) -> Any:
         kwargs: dict[str, Any] = {
             "max_results_per_source": self._max_results_per_source
         }
-        if self._sources is not None:
-            kwargs["sources"] = list(self._sources)
+        if sources is not None:
+            kwargs["sources"] = list(sources)
         return await self._service.search(query, **kwargs)

@@ -13,7 +13,7 @@ from app.repositories.source_document import SourceDocumentRepository
 from app.schemas.llm import LLMCompletion, LLMMessage
 from app.schemas.research_mission import MissionStatus, ResearchMissionCreate
 from app.schemas.search_agent import SearchAgentOutput
-from app.schemas.source_result import SourceResult
+from app.schemas.source_result import SourceResult, SourceSearchResponse
 from app.services.evidence_stage import PersistingEvidenceStage
 from app.services.mission import MissionService
 from app.services.search_stage import ResearchSourceSearchStage
@@ -378,3 +378,59 @@ def test_the_run_records_each_stage_as_an_event(session: Session) -> None:
     assert completed.metadata["evidence_count"] == result.evidence_count
     assert completed.metadata["decision"] == result.decision.model_dump(mode="json")
     assert completed.metadata["poc_candidates"]
+
+
+class RecordingSourceService:
+    """Records which query each source type was actually asked."""
+
+    def __init__(self) -> None:
+        self.asked: list[tuple[str, tuple[str, ...]]] = []
+
+    async def search(self, query, *, sources=None, max_results_per_source=8, **_):
+        names = tuple(source.value for source in (sources or ()))
+        self.asked.append((query, names))
+        return SourceSearchResponse(query=query, results=[], errors=[])
+
+
+def test_each_source_is_asked_in_its_own_query_language() -> None:
+    """Repository search matches keywords, so it must not receive prose."""
+
+    service = RecordingSourceService()
+    stage = ResearchSourceSearchStage(
+        service,
+        settings=mock_settings(),
+        llm_client=SequenceLLMClient(
+            [
+                '{"queries":["a long prose query about the topic"],'
+                '"repository_queries":["ticket classification llm"],'
+                '"notes":"Split plan."}'
+            ]
+        ),
+    )
+
+    run_search(stage)
+
+    by_source: dict[tuple[str, ...], list[str]] = {}
+    for query, names in service.asked:
+        by_source.setdefault(names, []).append(query)
+
+    assert by_source[("github",)] == ["ticket classification llm"]
+    assert "a long prose query about the topic" in by_source[("arxiv",)]
+    assert not any("ticket classification llm" == q for q in by_source[("arxiv",)])
+
+
+def test_a_plan_without_repository_queries_asks_every_source_together() -> None:
+    """Omitting the keyword list must leave retrieval exactly as it was."""
+
+    service = RecordingSourceService()
+    stage = ResearchSourceSearchStage(
+        service,
+        settings=mock_settings(),
+        llm_client=SequenceLLMClient(
+            ['{"queries":["a long prose query"],"notes":"No code search."}']
+        ),
+    )
+
+    run_search(stage)
+
+    assert all(names in ((), ("arxiv", "github")) for _, names in service.asked)
