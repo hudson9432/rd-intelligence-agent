@@ -36,9 +36,7 @@ def assess_evidence_sufficiency(
     if not 0 <= minimum_relevance <= 1:
         raise ValueError("minimum_relevance must be between zero and one")
     if not 0 <= minimum_extraction_confidence <= 1:
-        raise ValueError(
-            "minimum_extraction_confidence must be between zero and one"
-        )
+        raise ValueError("minimum_extraction_confidence must be between zero and one")
 
     assessments: list[EvidenceEligibility] = []
     effective_cards: list[EvidenceCard] = []
@@ -75,9 +73,7 @@ def assess_evidence_sufficiency(
         effective_evidence_count=len(effective_cards),
         independent_source_count=independent_source_count,
         result_bearing_count=sum(bool(card.result) for card in effective_cards),
-        limitation_bearing_count=sum(
-            bool(card.limitation) for card in effective_cards
-        ),
+        limitation_bearing_count=sum(bool(card.limitation) for card in effective_cards),
         minimum_effective_evidence=minimum_effective_evidence,
         minimum_independent_sources=minimum_independent_sources,
         minimum_relevance=minimum_relevance,

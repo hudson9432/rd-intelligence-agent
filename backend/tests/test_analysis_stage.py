@@ -131,8 +131,7 @@ def test_one_high_quality_source_returns_to_research() -> None:
     assert handoff.status == "research_required"
     assert handoff.research_request is not None
     assert any(
-        "independent replication" in query
-        for query in handoff.research_request.queries
+        "independent replication" in query for query in handoff.research_request.queries
     )
     report = handoff.evidence_sufficiency
     assert report is not None
@@ -167,9 +166,7 @@ def test_low_quality_cards_are_reported_but_do_not_satisfy_the_gate() -> None:
 
 def test_two_cards_from_one_source_still_return_to_research() -> None:
     evidence = supported_evidence()
-    evidence[1] = evidence[1].model_copy(
-        update={"source_id": evidence[0].source_id}
-    )
+    evidence[1] = evidence[1].model_copy(update={"source_id": evidence[0].source_id})
 
     handoff = stage().analyze(
         mission_goal=GOAL, evidence=evidence, research_exhausted=False

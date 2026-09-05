@@ -124,9 +124,7 @@ class PhaseCAnalysisStage:
                 claim_reviews=claim_reviews,
                 research_exhausted=research_exhausted,
             )
-            return handoff.model_copy(
-                update={"evidence_sufficiency": sufficiency}
-            )
+            return handoff.model_copy(update={"evidence_sufficiency": sufficiency})
         except LLMProviderError as error:
             raise WorkflowStageError(
                 "The analysis provider request failed; no inference was made."

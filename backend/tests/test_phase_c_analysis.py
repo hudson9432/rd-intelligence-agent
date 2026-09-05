@@ -399,14 +399,12 @@ def test_critic_rejects_a_homogeneous_question() -> None:
     assert outcome.status == "ready"
 
 
-def test_critic_does_not_treat_similar_questions_for_different_directions_as_duplicates() -> None:
+def test_critic_does_not_treat_similar_questions_for_different_directions_as_duplicates() -> (
+    None
+):
     mission_id = uuid4()
-    first_card = evidence_card(
-        mission_id=mission_id, relevance=0.9, confidence=0.9
-    )
-    second_card = evidence_card(
-        mission_id=mission_id, relevance=0.9, confidence=0.9
-    )
+    first_card = evidence_card(mission_id=mission_id, relevance=0.9, confidence=0.9)
+    second_card = evidence_card(mission_id=mission_id, relevance=0.9, confidence=0.9)
     first = direction("d1", "Direction one", [first_card.id], claim_id="c1")
     second = direction("d2", "Direction two", [second_card.id], claim_id="c2")
     analysis = AnalystOutcome(
